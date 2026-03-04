@@ -1,0 +1,72 @@
+Udgangspunkt: Systemets nuværende funktionalitet
+Milliohmmeteret består af:
+
+ATmega328P-baseret styring (Arduino Uno/Nano)
+ADS1115 16-bit differential ADC med dynamisk PGA (4x, 8x, 16x)
+4-leder Kelvin-måleteknik
+Konstantstrøm på 100 mA (LM317)
+Kalibreringstabeller i PROGMEM (kræver firmware-upload ved ny kalibrering)
+SCPI-lignende seriel protokol
+Intern datalogning (16 målinger i RAM)
+LCD-display via I2C
+Mulighed for RTC-tidsstempling
+Ingen AC-måling, polaritetsvending, temperaturkompensation, auto-zero eller NVRAM-lagring af kalibrering. [milliohmmeter7 | Txt], [Kravspecifikation3 | Txt]
+
+
+Muligheder for forbedringer uden hardwareændringer
+1. Temperaturkompensation via software
+
+Selvom der ikke er en fysisk temperatursensor, kan man implementere en simpel softwarebaseret kompensation, hvis RTC-modulet er monteret (nogle RTC-moduler har indbygget temperatursensor).
+Alternativt kan brugeren manuelt indtaste den aktuelle temperatur via seriel kommando, hvorefter firmware kan kompensere måleresultatet ud fra kendte temperaturkoefficienter for LM317 og referencekomponenter.
+Dette vil reducere temperaturrelaterede fejl, især hvis instrumentet bruges ved andre temperaturer end kalibreringen. [Kravspecifikation3 | Txt]
+
+2. Softwarebaseret auto-zero-funktion
+
+Implementér en sekvens, hvor brugeren kortslutter Kelvin-terminalerne og aktiverer en auto-zero-kommando (via SCPI eller knap).
+Firmware måler offset og trækker denne fra fremtidige målinger, hvilket reducerer systematiske fejl fra sense-ledninger og ADC-offset.
+Dette kræver kun firmwareændring og kan markant forbedre nøjagtigheden ved lave modstande. [milliohmmeter7 | Txt], [Kravspecifikation3 | Txt]
+
+3. Udvidet datalogning og eksport
+
+Udvid den interne logbuffer (så langt RAM rækker) og implementér mulighed for at eksportere hele loggen via SCPI, evt. med filtrering (fx kun værdier over/under en tærskel).
+Tilføj mulighed for at gemme loggen til ekstern enhed via seriel port (f.eks. til PC eller SD-kort, hvis hardware tillader det).
+Gør det muligt at hente loggen i realtid, så instrumentet kan bruges i længerevarende overvågning. [milliohmmeter7 | Txt], [Kravspecifikation3 | Txt]
+
+4. Forbedret brugerfeedback og fejlhåndtering
+
+Tilføj mere detaljerede fejlmeddelelser på display og seriel port (fx “ADC støj”, “Temperatur uden for kalibreringsområde”, “Offsetfejl”).
+Implementér selvtest-rutiner, der ved opstart eller på kommando tester ADC, PGA-skift, display og evt. RTC.
+Gør det muligt at vise statistiske data (middelværdi, standardafvigelse) for de seneste målinger på displayet. [milliohmmeter7 | Txt], [Kravspecifikation3 | Txt]
+
+5. Udvidet SCPI-kommandosæt
+
+Tilføj flere SCPI-kommandoer, fx til at:
+
+Forespørge firmwareversion, kalibreringsdato, temperatur (hvis tilgængelig)
+Starte auto-zero
+Hente logdata i forskellige formater
+Sætte/forespørge brugerdefinerede parametre (fx displayhysterese, måleinterval)
+
+
+Dette øger integrationsevnen i automatiserede testsystemer. [milliohmmeter7 | Txt], [Kravspecifikation3 | Txt]
+
+6. Forbedret displayfunktionalitet
+
+Tilføj mulighed for at vise flere informationer på LCD, fx:
+
+Aktuel temperatur (hvis tilgængelig)
+Offsetværdi (hvis auto-zero er brugt)
+Status for RTC og logbuffer
+
+
+Implementér menustruktur, hvor brugeren kan bladre mellem visninger med knappen. [milliohmmeter7 | Txt], [Kravspecifikation3 | Txt]
+
+7. Kalibreringsassistent i firmware
+
+Tilføj en guidet kalibreringssekvens, hvor displayet og/eller seriel porten instruerer brugeren trin for trin.
+Gør det muligt at gemme kalibreringsdata midlertidigt i RAM, så brugeren kan teste dem, før de skrives ind i PROGMEM og firmware uploades.
+Dette vil gøre kalibreringen mere brugervenlig og mindske risikoen for fejl. [milliohmmeter7 | Txt], [Kravspecifikation3 | Txt]
+
+
+Samlet vurdering
+Der er betydelige muligheder for at forbedre milliohmmeterets funktionalitet, brugervenlighed og nøjagtighed gennem firmware/software – uden at ændre på hardwaren. De vigtigste områder er temperaturkompensation, auto-zero, udvidet datalogning, bedre brugerfeedback, flere SCPI-kommandoer, smartere displayfunktioner og en mere brugervenlig kalibreringsproces.

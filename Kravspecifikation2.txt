@@ -1,0 +1,2796 @@
+Kravspecifikation (SRS) – Professionelt Arduino Milliohmmeter v5.1
+Forfatter: Jan Engelbrecht Pedersen
+Dato: 9. december 2025
+Version: 5.1
+Firmware: milliohmmeter6.ino
+
+Indholdsfortegnelse
+
+Indledning
+1.1 Formål
+1.2 Omfang
+1.3 Definitioner og forkortelser
+1.4 Referencer
+Systemoversigt
+2.1 Hvad er et milliohmmeter?
+2.2 Måleprincip
+2.3 Typiske anvendelser
+Materialeliste (BOM)
+Systemarkitektur
+4.1 Elektrisk diagram og stikskema
+4.2 Strømforsyning og termiske forhold
+4.3   Use Cases og Brugsscenarier
+Funktionelle krav
+5.1 Måleområde og opløsning
+5.2 Teststrøm
+5.3 4-leder Kelvin-måling
+5.4 ADC-systemkrav
+5.5 Kalibreringsknap og -funktion
+5.7  Non-Funktionelle Krav (NFR)
+Kalibreringsvejledning
+6.1 Forberedelse
+6.2 Softwarekalibrering
+6.3 Fejlkilder
+Verifikation og test
+7.1 Funktionsverifikation
+7.2 Nøjagtighedsverifikation
+7.3 EMC- og miljøtest
+EMC og PCB-layout
+8.1 Layoutkrav
+8.2 Shielding og filtrering
+Softwarearkitektur
+9.1 Doxygen-dokumentation
+9.2 Softwaremoduler
+Produktionskrav
+10.1 Gerber-filer og fabrikationskrav
+10.2 Montage og test
+Acceptance test og godkendelse
+Bilag og eksempler
+
+
+1. Indledning
+1.1 Formål
+Dette dokument beskriver kravspecifikationen og software requirements specification (SRS) for et professionelt Arduino-baseret milliohmmeter målrettet hobbysegmentet, 
+men med funktionalitet og nøjagtighed på niveau med kommercielle instrumenter. Formålet er at gøre det muligt for enhver med grundlæggende elektronikforståelse at bygge, 
+kalibrere og anvende instrumentet samt integrere det i laboratoriemiljøer og automatiserede testsystemer.
+1.2 Omfang
+Kravspecifikationen dækker alle aspekter af systemet: hardware, software, kalibrering, test, EMC, dokumentation og integration. Den er udarbejdet, 
+så den kan følges trin-for-trin fra indkøb af komponenter til færdigtestet instrument.
+1.3 Definitioner og forkortelser
+
+DUT: Device Under Test
+SRS: Software Requirements Specification
+ADC: Analog-to-Digital Converter
+EMC: Electromagnetic Compatibility
+BOM: Bill of Materials
+Kelvin-måling: 4-leder målemetode for lav-ohm
+PCB: Printed Circuit Board
+RTC: Real Time Clock
+CSV: Comma Separated Values
+XML: Extensible Markup Language
+
+1.4 Referencer
+
+IEEE 830-1998: Software Requirements Specification
+Arduino Uno R3, ATmega328P datasheet
+ADS1115 datasheet
+DS1307 RTC datasheet
+EN55022 Class B (EMC-standard)
+
+
+2. Systemoversigt
+2.1 Hvad er et milliohmmeter?
+Et milliohmmeter er et specialiseret præcisionsmåleinstrument designet til at måle meget lave elektriske modstande med høj opløsning og nøjagtighed. Instrumentet opererer typisk i måleområdet fra 0,002 ohm (2 milliohm) til 5 ohm, hvilket er væsentligt under hvad et almindeligt multimeter kan måle pålideligt.
+Traditionelle digitale multimetre er generelt begrænset til målinger over 1-10 ohm med rimelig præcision, da deres egen indre modstand, testledningers modstand og kontaktmodstande introducerer betydelige fejl ved lavere værdier. Et milliohmmeter er specifikt udviklet til at eliminere disse fejlkilder gennem anvendelse af 4-leder Kelvin-måleteknik og kontrolleret højere teststrøm.
+Tekniske karakteristika
+Måleområde: 0,002 Ω til 5 Ω (2 mΩ - 5000 mΩ)
+Opløsning: 0,002 Ω (2 mΩ) eller bedre
+Teststrøm: 100 mA (konstant)
+Måleteknik: 4-leder Kelvin-måling
+Nøjagtighed: Typisk ±0,5% til ±2% afhængig af måleområde
+Instrumentets betydning
+Evnen til at måle milliohm-modstande er kritisk i moderne elektronik og elektrisk installation. Mange fejl og problemer manifesterer sig som små ændringer i modstand, som er usynlige for konventionelle måleinstrumenter. Et milliohmmeter gør det muligt at:
+
+Identificere defekte forbindelser før de forårsager totalt svigt
+Verificere kvaliteten af lodninger, svejsninger og skrueforbindelser
+Diagnosticere interne fejl i komponenter som transformere og motorer
+Overvåge batteriers sundhedstilstand gennem ESR-måling (Equivalent Series Resistance)
+Kvalitetssikre produktionen af lavmodstandskomponenter
+
+Industrielle og professionelle anvendelser
+Milliohmmetre anvendes bredt inden for:
+
+Elektrisk installation: Verificering af jordingssystemer, kontrolmåling af kabelinstallationer, jording af udstyr
+Vedligeholdelse: Periodisk test af sikkerhedskritiske forbindelser, dokumentation af elektriske installationer
+Produktion: Kvalitetskontrol af lavmodstandskomponenter, funktionstest af strømforsyninger
+Forskning og udvikling: Karakterisering af nye materialer, udvikling af sensorer og transducere
+Batteriteknologi: Karakterisering af battericeller, identifikation af defekte celler i pakker
+Rumfart og forsvar: Verifikation af kritiske elektriske forbindelser i sikkerhedskritiske systemer
+
+2.2 Måleprincip
+Grundlæggende teori
+Instrumentets funktion er baseret på Ohms lov, en af de fundamentale love i elektricitet:
+R = V / I
+hvor:
+
+R = modstand (Ω)
+V = spændingsfald (V)
+I = strøm (A)
+
+For at bestemme en ukendt modstand sender instrumentet en præcist kontrolleret konstant strøm gennem testkomponenten (DUT - Device Under Test) og måler det resulterende spændingsfald. Modstandsværdien beregnes derefter ved simpel division.
+Konstant strømkilde
+Teststrømmen på 100 mA genereres af et konstant strømkredsløb baseret på en LM317 spændingsregulator konfigureret som strømregulator. Dette opnås ved at udnytte regulatorens interne referencestrøm:
+I_test = V_ref / R_set
+hvor V_ref = 1,25V (LM317's reference) og R_set er en præcisionsmodstand på 12,5 Ω (±1% eller bedre), hvilket giver en teststrøm på præcis 100 mA.
+Fordele ved 100 mA teststrøm
+Valget af 100 mA teststrøm repræsenterer en optimal balance mellem flere faktorer:
+Tilstrækkelig høj til præcision: Ved lave modstande genererer 100 mA et målbart spændingsfald. For en modstand på 0,1 Ω giver 100 mA et spændingsfald på 10 mV, som er godt detekterbart af en præcisions-ADC.
+Lav nok til sikkerhed: 100 mA er tilstrækkeligt lav til ikke at beskadige de fleste komponenter eller forårsage betydelig opvarmning under målingen. Effekten i en 1 Ω modstand er kun P = I²R = (0,1)² × 1 = 0,01 W = 10 mW.
+Praktisk implementering: 100 mA kan nemt leveres af en standard 9V batteri i flere timer og kan håndteres af almindelige Arduino-kompatible komponenter.
+Beregningsvenlig: Værdien 100 mA = 0,1 A forenkler matematikken. For en målt spænding V målt i millivolt bliver modstanden direkte: R (mΩ) = V (mV) / 0,1 = 10 × V (mV).
+4-leder Kelvin-måling
+Den mest kritiske del af milliohmmetrets design er anvendelsen af 4-leder Kelvin-måleteknik. Denne metode eliminerer effektivt fejl fra testledninger og kontaktmodstande.
+Problemet med 2-leder måling
+I en traditionel 2-leder måling sendes strømmen gennem de samme ledninger, som bruges til at måle spændingen. Dette betyder at det målte spændingsfald inkluderer:
+
+Spændingsfaldet over DUT (det vi ønsker at måle)
+Spændingsfaldet over testledningerne
+Spændingsfaldet over kontaktmodstandene
+
+For en typisk testledning kan modstanden være 0,02-0,1 Ω per ledning. Ved 100 mA giver dette et spændingsfald på 2-10 mV per ledning, 
+hvilket for begge ledninger bliver 4-20 mV. Hvis vi forsøger at måle en modstand på 0,05 Ω (5 mV ved 100 mA), vil fejlen være 80-400%, hvilket gør målingen værdiløs.
+Løsningen: Kelvin-måling
+I et 4-leder system adskilles strøm- og spændingsmålekredsløbene:
+Strømledninger (Force): To ledninger (I+ og I-) fører den konstante teststrøm fra strømkilden gennem DUT. Disse ledninger kan have 
+betydelig modstand uden at påvirke målingen, da strømmen er konstant.
+Spændingsmåleledninger (Sense): To separate ledninger (V+ og V-) forbindes direkte til DUT's terminaler for at måle spændingsfaldet. 
+Disse ledninger fører praktisk talt ingen strøm (typisk < 1 µA), så der er intet spændingsfald over dem uanset deres modstand.
+Forbindelsestopologi
+Strømkilde (+) ──[I+]──┐
+                       │
+                    [  DUT  ]
+                       │
+                  [V+] │ [V-]  ← Højimpedans spændingsmåling (ADC)
+                       │
+Strømkilde (-) ──[I-]──┘
+Spændingsmålingen foretages direkte ved DUT's terminaler, så kun spændingsfaldet over selve DUT måles, mens alle parasitære modstande i strømstien bliver irrelevante.
+Praktisk implementering
+I dette Arduino-baserede design realiseres den højimpedansmåling ved hjælp af en ADS1115 16-bit delta-sigma ADC. Denne ADC har:
+
+Meget høj indgangsimpedans (> 100 MΩ)
+Differentiel måling (måler direkte V+ minus V-)
+Programmable Gain Amplifier (PGA) for optimal udnyttelse af måleområdet
+16-bit opløsning for høj præcision
+
+Signalbehandling og beregning
+Efter at ADC'en har målt spændingsfaldet over DUT, udføres følgende trin:
+
+ADC-aflæsning: Den 16-bit værdi fra ADS1115 konverteres til en spændingsværdi i volt baseret på valgt gain-indstilling.
+Kalibrering: Eventuel offset-fejl (systemisk nul-punkt fejl) trækkes fra den målte værdi.
+Modstandsberegning: R = V_målt / 0,100 A
+Enhedskonvertering: Resultatet konverteres til milliohm (mΩ) for nem aflæsning.
+Filtrering: For at reducere støj kan flere målinger gennemsnittes (moving average filter).
+Display: Den endelige værdi vises på LCD med passende antal decimaler.
+
+Målenøjagtighed og fejlkilder
+Selv med Kelvin-måling og konstant strøm er der potentielle fejlkilder:
+Termiske effekter: Opvarmning af DUT under måling kan ændre modstanden. Miniméres ved kort måletid og lav teststrøm.
+ADC-støj: Elektronisk støj i ADC'en kan påvirke målingen. Reduceres ved filtrering og multiple målinger.
+Strømstabilitet: Variationer i teststrømmen påvirker direkte nøjagtigheden. LM317-kredsløbet skal have stabil forsyningsspænding.
+Kontaktmodstand i sense-forbindelser: Selv om Kelvin-måling eliminerer de fleste fejl, skal sense-kontakterne stadig have god elektrisk forbindelse. 
+Oxiderede eller snavsede kontakter kan stadig introducere fejl.
+Termospændinger: Forskellige metaller i kontaktpunkter kan generere små spændinger (få µV). Miniméres ved brug af samme materiale i alle kontakter og differentiel måling.
+2.3 Typiske anvendelser
+Milliohmmetret finder bred anvendelse på tværs af mange områder inden for elektronik, elektroteknik og vedligeholdelse. 
+Følgende er detaljerede beskrivelser af de primære anvendelsesområder.
+2.3.1 Kabeltestning og fejlfinding
+Elektriske kabler og ledninger har en iboende modstand der afhænger af materiale, tværsnitsareal og længde. For kobberkabel gælder:
+R = ρ × L / A
+hvor:
+
+ρ = resistivitet for kobber (≈ 1,7 × 10⁻⁸ Ωm ved 20°C)
+L = ledningens længde (m)
+A = tværsnitsarealet (m²)
+
+For et standard 1,5 mm² kobberkabel er modstanden cirka 11,3 mΩ per meter.
+Praktiske anvendelser
+Detektion af delvise brud: Et kabel der er delvist beskadiget (fx 50% af trådene brækket) vil have dobbelt så høj modstand som forventet. Dette kan detekteres før kablet fejler helt.
+Verificering af forbindelser: Lodninger, klemforbindelser og presseforbindelser kan verificeres ved at måle modstanden gennem forbindelsen. En god forbindelse vil have modstand tæt på teoretisk værdi, mens en dårlig forbindelse viser øget modstand.
+Længdemåling: Ved at måle modstanden kan kabellængden estimeres, hvilket er nyttigt når fysisk måling er besværlig.
+Identifikation af kabler: I installationer med mange kabler kan individuelle kabler identificeres ved deres specifikke modstand.
+Eksempel: 10 meter 1,5 mm² kobberkabel
+
+Teoretisk modstand: 10 m × 11,3 mΩ/m = 113 mΩ
+God forbindelse: 110-120 mΩ (acceptable tolerance)
+Dårlig forbindelse: > 150 mΩ (indikerer problem)
+Delvist brud (50%): ≈ 220 mΩ (næsten dobbelt)
+
+2.3.2 Shunt-modstande og strømmåling
+Shunt-modstande er præcisions lavmodstandskomponenter designet til strømmåling. Princippet er simpelt: en kendt lav modstand placeres i serie med lasten, og strømmen bestemmes ved at måle spændingsfaldet over shunten.
+Karakteristika for shunt-modstande
+Typiske værdier: 0,001 Ω til 0,1 Ω
+Tolerancer: ±0,5% til ±5%
+Effekt: 1W til 100W afhængig af størrelse
+Temperaturkoefficient: Typisk < 50 ppm/°C for præcisionsshunts
+Anvendelser
+Batterimonitorering: I batteriladere og BMS (Battery Management Systems) bruges shunts til at måle lade- og afladningsstrøm med høj præcision. En 0,01 Ω shunt ved 10A giver 100 mV spændingsfald.
+Strømforsyninger: Mange switchmode strømforsyninger bruger shunts til strømbegrænsning og overvågning.
+Motorkontrol: I elektriske motordrev bruges shunts til fasstrømmåling for præcis motorregulering.
+Energimåling: I smart-home systemer og energimålere anvendes shunts til præcis måling af energiforbrug.
+Verificering og kalibrering
+Et milliohmmeter er ideelt til:
+
+Produktionskontrol: Verificering af shunt-værdier i produktionen
+Kalibreringsverificering: Periodisk check af shunts i installerede systemer
+Fejlfinding: Identifikation af defekte eller driftede shunts
+Matching: Udvælgelse af matchede par af shunts til differentialmålinger
+
+Eksempel: En 0,01 Ω shunt specificeret til ±1% skal måle mellem 9,90 mΩ og 10,10 mΩ. Milliohmmetret kan verificere dette direkte.
+2.3.3 Transformere og motorviklinger
+Viklinger i transformere, spoler, relæer, motorer og generatorer har alle en DC-modstand (ofte kaldet DCR - DC Resistance) der kan måles med et milliohmmeter. Denne måling er værdifuld til fejldiagnostik og kvalitetskontrol.
+Typiske DCR-værdier
+Små transformere: 0,5 Ω til 50 Ω per vikling
+Krafttransformere: 0,01 Ω til 1 Ω (afhængigt af effekt)
+Elmotorer (små): 1 Ω til 20 Ω per fase
+Elmotorer (store): 0,05 Ω til 5 Ω per fase
+Spoler/induktorer: 0,1 Ω til 100 Ω
+Fejldiagnostik
+Kortsluttede vindinger: Hvis en eller flere vindinger i en vikling er kortsluttet, reduceres den totale modstand. En 10% reduktion i modstand kan indikere 10% kortsluttede vindinger.
+Delvise kortslutninger: Gradvis reduktion i modstand over tid kan indikere tiltagende isolationssvigt.
+Brudte vindinger: Åbne eller brudte vindinger giver uendelig modstand. I praksis kan en delvist brækket tråd vise meget høj modstand.
+Ubalance i motorer: Trefasede motorer skal have næsten identisk modstand i alle tre faser. Ubalance indikerer fejl.
+Ujævn vikling: For transformere med multiple viklinger skal modstandsforholdet matche vindingsforholdet.
+Praktisk eksempel: Trefaset motor
+En 3-faset induktionsmotor har typisk tre viklinger forbundet i stjerne eller trekant. For en lille 1 kW motor kan hver vikling have DCR ≈ 3-5 Ω.
+
+Fase A: 4,2 Ω
+Fase B: 4,3 Ω
+Fase C: 4,2 Ω
+Vurdering: Normal (< 2% variation)
+
+Hvis Fase B måler 3,8 Ω (10% lavere), indikerer dette mulige kortsluttede vindinger.
+Transformertest
+For en toroide transformator med 230V primær og 12V sekundær (vindingsforhold 230:12 ≈ 19:1):
+
+Primær DCR: 10 Ω
+Sekundær DCR: Bør være cirka 10/19² ≈ 0,028 Ω (praktisk måske 0,05-0,1 Ω pga. tykkere tråd)
+
+Milliohmmetret kan verificere sekundær-modstanden præcist, hvilket et almindeligt multimeter ikke kan.
+2.3.4 Batteridiagnostik og intern modstand (ESR)
+Batteriers interne modstand (ofte kaldt ESR - Equivalent Series Resistance) er en kritisk parameter der afslører meget om batteriets tilstand og sundhed. ESR øges gradvist som et batteri ældes og degraderer.
+Hvad er ESR?
+ESR repræsenterer den totale resistive impedans i et batteri, som inkluderer:
+
+Modstand i elektrodematerialer
+Modstand i elektrolytten
+Kontaktmodstande internt
+Modstand i separatoren
+
+Betydningen af ESR-måling
+State of Health (SOH): ESR er en direkte indikator for batteriets sundhedstilstand. Høj ESR betyder dårlig sundhed.
+Kapacitet: Der er typisk en korrelation mellem øget ESR og reduceret kapacitet.
+Effektlevering: Høj ESR begrænser batteriets evne til at levere høje strømme. Ved høj belastning falder terminalspændingen betydeligt.
+Opvarmning: Høj ESR medfører øget effekttab (P = I²R) og opvarmning under brug.
+Sikkerhed: Ekstremt høj ESR kan indikere farlig degradation, især i lithium-baserede batterier.
+Typiske ESR-værdier
+Alkaline AA-batteri (nyt): 150-300 mΩ
+Alkaline AA-batteri (brugt): 500-2000 mΩ
+NiMH AA-batteri (god): 30-100 mΩ
+Lithium-ion 18650 (nyt): 20-50 mΩ
+Lithium-ion 18650 (slidt): 100-300 mΩ
+Bilbatteri 12V (god): 3-6 mΩ
+Bilbatteri 12V (svagt): 10-20 mΩ
+Diagnostik ved ESR-måling
+Identifikation af defekte celler: I batteripakker med serie-parallelle konfigurationer kan en enkelt celle med høj ESR identificeres.
+Sortering af genopladelige batterier: NiMH-batterier med lav ESR har højere kapacitet og effekt.
+Forudsigelse af levetid: Gradvis stigende ESR indikerer tiltagende degradation og tillader planlagt udskiftning.
+Kvalitetskontrol: Ved modtagelse af nye batterier kan ESR verificeres mod specifikationer.
+Måleprocedure
+Da ESR ideelt set måles ved AC-frekvenser (typisk 1 kHz), giver en DC-måling ved 100 mA en tilnærmelse:
+
+Mål batteriets terminalspænding uden belastning (V_oc)
+Forbind milliohmmeter og mål modstand (≈ ESR_dc)
+Sammenlign med reference-værdier for batteri-typen
+Vurder om ESR er acceptabel
+
+Bemærk: DC-målt modstand er typisk lidt højere end AC ESR på grund af polarisationseffekter, men er stadig meget brugbar til diagnostik.
+Praktisk eksempel
+Test af 4 stk AA NiMH-batterier til lommelygte:
+
+Batteri 1: 45 mΩ - Udmærket
+Batteri 2: 50 mΩ - Udmærket
+Batteri 3: 55 mΩ - Acceptabel
+Batteri 4: 180 mΩ - Defekt, skal udskiftes
+
+Ved at udskifte batteri 4 sikres optimal ydelse af batteripakken.
+2.3.5 Kontaktmodstand og forbindelseskvalitet
+Elektriske kontakter i kontaktorer, relæer, switches, stik og skrueforbindelser udvikler alle gradvist øget kontaktmodstand over tid på grund af oxidation, korrosion, vibrationer og termisk cyklus. Øget kontaktmodstand fører til:
+
+Øget effekttab og opvarmning
+Reduceret effektivitet
+Potentiel brand-risiko ved høje strømme
+Intermitterende fejl
+
+Anvendelser
+Sikringsholdere: Test af kontaktmodstand mellem sikring og holder.
+Skrueforbindelser: Verificering af korrekt tilspænding i tavler og installationer.
+Stikforbindelser: Test af slidte stik og sokler.
+Kontaktorer og relæer: Overvågning af kontakt-degradation i industrielt udstyr.
+Jordingssystemer: Verificering af jordingsforbindelser og bonding.
+Acceptable værdier
+God skrueforbindelse: < 1 mΩ (næsten umålelig)
+Acceptabel skrueforbindelse: 1-5 mΩ
+Dårlig forbindelse: > 10 mΩ
+Kritisk forbindelse: > 50 mΩ (kræver omgående action)
+Termografi uden kamera
+En unik anvendelse af milliohmmetret er indirekte termografi. Ved at måle kontaktmodstande kan man identificere forbindelser der vil blive varme under drift uden at skulle anvende et dyrt termisk kamera.
+Princip: Effekttabet i en forbindelse er P = I² × R. Ved at måle R og kende den forventede strøm I kan opvarmningen estimeres.
+Eksempel: En skrueforbindelse der fører 16A og har modstand 20 mΩ:
+P = (16)² × 0,020 = 256 × 0,020 = 5,1 W
+Dette er betydelig effektudvikling der vil resultere i opvarmning på 30-50°C over omgivelsestemperatur, hvilket kan føre til yderligere degradation og potentiel brand.
+Ved systematisk måling af kontaktmodstande i en installation kan problemområder identificeres og rettes før de bliver til alvorlige fejl.
+2.3.6 Yderligere anvendelser
+PCB trace-verifikation: Kontrol af kobberbanernes integritet på printkort, især efter termisk stress eller mekanisk belastning.
+Sikringstest: Verificering af sikringers integritet før installation. En god sikring har DCR < 10 mΩ.
+Loddeforbindelser: Kvalitetskontrol af lodninger, især i højstrøms-applikationer.
+Jordelektroder: Måling af jordspyd og jordingssystemer (bemærk: jordelektrode-måling kræver specialudstyr for AC-impedans, men DC-modstand giver indikation).
+Materialekarakterisering: Bestemmelse af resistivitet i ledende materialer, carbonfibres, grafit osv.
+Kabel-matching: Udvælgelse af matchede kabelpar til differentielle signaler eller præcisions-applikationer.
+Industriel vedligeholdelse: Periodisk test af kritiske elektriske forbindelser som del af preventiv vedligehold program.
+
+Konklusion på systemoversigt
+Dette Arduino Uno-baserede milliohmmeter kombinerer et simpelt, tilgængeligt design med professionelle måleprincipper. Ved at anvende 4-leder Kelvin-måling, konstant teststrøm og præcisions-ADC, opnås måleresultater der er sammenlignelige med betydeligt dyrere kommercielle instrumenter. Instrumentet finder bred anvendelse inden for fejlfinding, diagnostik, kvalitetskontrol og vedligeholdelse på tværs af mange elektriske og elektroniske discipliner.
+
+
+3. Materialeliste (BOM)
+
+Ref.Komponent		Antal		Specifikation			Hvorfor valgt?							Leverandør			Pris
+U1			1		Arduino Uno R31			ATmega328P, 5V, USBStandard platform, 5V logik			Elfa/Amazon			120 DKK
+U2			1		ADS11151			16-bit I²C ADC, ±256mV–±6V 16-bit opløsning, høj præcision	AliExpress			25 DKK
+U3			1		LM317T1TO-220 regulator		Simpel konstantstrøm, 1A kapacitet				Elfa				5 DKK
+DISP			1		16x2 LCD I²C1			HD44780 + PCF8574 adapter2 linjer, I²C sparer pins		Budgetronics			50 DKK
+R1			1		12.5 Ω 0.5% metal film, 0.25W	Præcis teststrøm						Elfa				3 DKK
+R2			1		220 Ω 15% carbon, 0.25W		LM317 stabilitet						Elfa				1 DKK
+R3,R4			1		4.7 kΩ 21% metal film		I²C pullups							Elfa				2 DKK
+C1,C2			1		100 nF Keramisk 50V X7R		Afkobling, LM317 stabilitet					Elfa				2 DKK
+SW1			1		Tactile switch 16x6 mm 		GPIO2→GND Kalibreringsknap					Elfa				5 DKK
+J1,J4			4		44 mm bananstik			Rød/Sort/Gul/Grøn, 						Elfa				40 DKK
+PCB Double-layer 	1		FR4150x70 mm, 1.6 mm, 35 µm Cu  EMC layout, professionelt udseende				JLCPCB				50 DKK
+BAT19V PP3		1		1500 mAh+ alkaline		8+ timer drift, ingen switching noise				Elfa				30 DKK
+HS1			1		Heatsink115x15x10 mm, 5K/WLM317 termisk styring							Elfa				10 DKK
+F1			1		PTC fuse 1500 mA hold, 1A trip  Overstrømsbeskyttelse						Elfa				10 DKK
+D1			1		1N400711A rectifier		Polaritetsbeskyttelse						Elfa				2 DKK
+Total pris: ca. 355 DKK
+
+4. Systemarkitektur
+4.1 Elektrisk diagram og stikskema
+Systemets elektriske arkitektur er designet omkring fire hovedfunktionsblokke: strømforsyning med konstantstrøm, Kelvin-målesystem, digital signalbehandling og brugerinterface. Denne modulære opdeling sikrer nem fejlfinding, vedligeholdelse og eventuel opdatering af individuelle dele.
+4.1.1 Overordnet systemarkitektur
+┌─────────────────────────────────────────────────────────────────┐
+│                         STRØMFORSYNING                          │
+│  9V Batteri → D1 → F1 → 5V Regulator → Arduino/ADC/LCD         │
+│                    └─→ LM317 (100mA) → DUT                      │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                      KELVIN MÅLESYSTEM                          │
+│  Force+ ──[Strømsti]──→ DUT ──[Strømsti]──→ Force-             │
+│  Sense+ ──[Højimpedans]→ DUT ←[Højimpedans]── Sense-           │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                   DIGITAL SIGNALBEHANDLING                      │
+│  ADS1115 ADC → I²C Bus → Arduino Uno → Beregning/Kalibrering   │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                       BRUGERINTERFACE                           │
+│  LCD Display (I²C) + Kalibreringsknap + RTC (valgfri)          │
+└─────────────────────────────────────────────────────────────────┘
+4.1.2 Detaljeret strømforsyningssektion
+Strømforsyningen er opdelt i to separate subsystemer for at sikre optimal funktion af både digital elektronik og målekredsløb.
+Primær strømforsyning (Digital)
+Komponent-flow:
+9V Batteri (B1)
+    ↓
+D1 (1N4001) - Polaritetsbeskyttelse
+    ↓
+F1 (500mA PTC) - Sikring mod kortslutning
+    ↓
+7805 eller AMS1117-5.0 - 5V Regulator
+    ↓
++5V Rail (Arduino, ADS1115, LCD, RTC)
+Specifikationer:
+
+Batteritype: 9V alkaline eller NiMH (6F22)
+Batterilevetid: 10-20 timer kontinuerlig drift (afhængig af LCD backlight)
+Polaritetsbeskyttelse: 1N4001 diode (V_f ≈ 0,7V)
+PTC sikring: 500mA hold-strøm, 1A trip-strøm
+Spændingsregulator: 7805 (TO-220) eller AMS1117-5.0 (SOT-223)
+Udgangsspænding: 5,0V ±5%
+Maksimal strøm: 400mA (typisk forbrug: 100-150mA)
+
+Afkoblekondensatorer:
+
+C1: 100µF/16V elektrolyt ved batteriindgang
+C2: 100nF keramisk ved regulatorindgang
+C3: 10µF/10V elektrolyt ved regulatorudgang
+C4: 100nF keramisk ved regulatorudgang
+C5-C8: 100nF keramisk ved hver IC's forsyningsben
+
+Konstantstrømkilde (Målestrøm)
+Komponent-flow:
+9V fra B1 (efter D1 og F1)
+    ↓
+LM317T (TO-220)
+    ↓
+Rset (12,5Ω ±0,5%, 1W) → GND
+    ↓
+Force+ (til DUT via testledning)
+    ↓
+DUT (Device Under Test)
+    ↓
+Force- (til GND via testledning)
+LM317 konstantstrøm-konfiguration:
+Standardformlen for LM317 i strømregulator-mode:
+I_out = V_ref / R_set
+hvor V_ref = 1,25V (typisk for LM317)
+For 100mA output:
+R_set = 1,25V / 0,100A = 12,5Ω
+Komponentspecifikationer:
+
+LM317T: TO-220 package, 1,5A max, V_in-V_out = 3-40V
+Rset: Metalfilm modstand, 12,5Ω ±0,5% (±6,25mΩ), 1W, TCR < 50ppm/°C
+Heatsink (HS1): TO-220 køleprofil, R_th < 20°C/W
+C_adj: 10µF tantulum ved LM317 ADJ pin (undertrykkelse af ripple)
+
+Effektberegning:
+Ved maksimal belastning (5Ω DUT):
+
+Spænding over DUT: V = I × R = 0,1A × 5Ω = 0.5V
+Spænding over LM317: V_LM317 = (9V - 0,7V) - 0.5V - 1,25V ≈ 6,55V
+Effekt i LM317: P = V × I = 6,55V × 0,1A = 0,655W
+Effekt i Rset: P = I² × R = (0,1)² × 12,5 = 0,125W
+
+Ved minimal belastning (0,01Ω DUT):
+
+Spænding over DUT: V ≈ 0,001V (næsten nul)
+Spænding over LM317: ≈ 7V
+Effekt i LM317: P ≈ 0,7W (værste tilfælde)
+
+Termisk management:
+LM317's junction temperatur:
+T_j = T_ambient + P_dissipation × (R_th_jc + R_th_cs + R_th_sa)
+Med heatsink (R_th_sa = 20°C/W), termisk paste (R_th_cs = 1°C/W), LM317 (R_th_jc = 5°C/W):
+T_j = 25°C + 0,7W × (5 + 1 + 20) = 25°C + 18,2°C = 43,2°C
+Dette er godt under maksimal junction temperatur (125°C), hvilket sikrer stabil drift.
+4.1.3 Kelvin målesystem - Signalsti
+Force-ledninger (Strømsti)
+Force+ ledning:
+LM317 OUT → Terminal Block TB1-1 → Testprobe/Klemme → DUT
+Force- ledning:
+DUT → Testprobe/Klemme → Terminal Block TB1-2 → GND
+Elektriske karakteristika:
+
+Strøm: 100mA konstant
+Ledningsstørrelse: Minimum 22AWG (0,33mm²), anbefalet 20AWG (0,5mm²)
+Maksimal ledningslængde: 2 meter (modstand < 0,1Ω påvirker ikke måling)
+Kontaktmodstand: Ikke kritisk, kan være op til 1Ω uden at påvirke nøjagtighed
+
+Sense-ledninger (Spændingsmåling)
+Sense HI (V+) ledning:
+DUT (+) → Testprobe/Klemme → Terminal Block TB2-1 → PCB trace → ADS1115 A0
+Sense LO (V-) ledning:
+DUT (-) → Testprobe/Klemme → Terminal Block TB2-2 → PCB trace → ADS1115 A1
+Kritiske specifikationer:
+
+Indgangsimpedans ADS1115: > 100MΩ (typisk > 1GΩ)
+Strøm gennem sense-ledninger: < 1µA (praktisk negligabel)
+Ledningsmodstand: Helt irrelevant (kan være 100Ω uden målefejl)
+PCB trace-design:
+
+Bredde: 0,2mm (8 mils)
+Længde: < 5cm fra terminal til ADS1115
+Layout: Parallelle traces med 0,5mm spacing, eller tvistet par
+Guard ring: Anbefalet omkring sense-traces (forbundet til GND)
+Keep-out zone: 5mm fra højfrekvente signaler (krystal, PWM)
+
+
+
+EMI/støjreduktion:
+
+Sense traces skal løbe vinkelret på strøm-traces (90° krydsning)
+Ingen parallelle traces med digital I/O over mere end 5mm
+Ground plane under hele sense-sektionen
+Ferritkerne på testledninger ved høj støj (valgfri)
+
+4.1.4 I²C kommunikationsbus
+I²C bussen forbinder Arduino Uno med alle perifere enheder og skal designes for maksimal pålidelighed.
+Bus-topologi
+Arduino Uno (Master)
+    │
+    ├── SDA ────┬──[4,7kΩ]──→ +5V
+    │           │
+    ├── SCL ────┼──[4,7kΩ]──→ +5V
+    │           │
+    │           ├──→ ADS1115 (Addr: 0x48)
+    │           │
+    │           ├──→ LCD 20x2 (Addr: 0x27)
+    │           │
+    │           └──→ DS1307 RTC (Addr: 0x68) [Valgfri]
+Elektriske specifikationer
+Pull-up modstande:
+
+Værdi: 4,7kΩ ±5%
+Placering: På PCB tæt ved Arduino
+Formål: Sikrer HIGH niveau når bus er idle
+
+Bus-hastighed:
+
+Standard mode: 100kHz (standard Arduino Wire library)
+Fast mode: 400kHz (mulig, men ikke nødvendig)
+
+Trace-design:
+
+Maksimal trace-længde SDA: < 10cm
+Maksimal trace-længde SCL: < 10cm
+Trace-bredde: 0,3-0,5mm (12-20 mils)
+Trace-impedans: Ikke kritisk ved disse hastigheder
+Afstand mellem SDA og SCL: > 0,5mm (undgå kapacitiv kobling)
+
+Kapacitans-budget:
+
+Hver enhed: 10-15pF
+PCB traces (10cm): ≈ 10pF
+Total: < 50pF (godt under 400pF grænse for standard mode)
+
+I²C-adresser
+Alle enheder har unikke 7-bit I²C-adresser for at undgå konflikter:
+EnhedAdresseBinærHexKommentarADS11157210010000x48ADDR pin til GNDLCD PCF85743901001110x27Standard for de fleste LCD I²C adaptereDS1307 RTC10411010000x68Fast adresse
+Adressekonflikt-håndtering:
+
+Software skal tjekke tilstedeværelse af hver enhed ved opstart
+Ved konflikt vises fejlmeddelelse på seriel port
+Systemet kan stadig fungere hvis LCD er tilgængelig (degraded mode)
+
+4.1.5 Display og brugerinterface
+LCD Display
+Specifikationer:
+
+Type: 20x2 tegn alfanumerisk LCD med I²C interface (PCF8574)
+I²C-adresse: 0x27 (verificeres i software)
+Forsyningsspænding: 5V ±10%
+Strømforbrug: 80-120mA med backlight, 20mA uden backlight
+Backlight: Skal kunne slukkes i software for at spare strøm
+Kontrast: Justeres via potentiometer på I²C-adapter
+
+Display-layout:
+┌────────────────────┐
+│ R: 123.45 mΩ               │  ← Måleværdi (row 1)
+└────────────────────┘
+
+Kalibreringsknap
+Hardware:
+
+Komponent: Tactile pushbutton, SPST, normally open
+Tilslutning: Arduino digital pin D2
+Pull-up: Intern pull-up aktiveret i software (INPUT_PULLUP)
+Normal tilstand: HIGH (≈5V, intern pull-up)
+Aktiveret tilstand: LOW (0V, knap trykket)
+
+Mekaniske specifikationer:
+
+Aktueringskraft: 100-200gf (gram-force)
+Kontakt-bounce: < 5ms
+Levetid: > 100.000 aktueringer
+Mounting: Panel-mount eller PCB-mount med strain relief
+
+Placering:
+
+Skal være let tilgængelig fra forsiden af enheden
+Skal have tydelig mærkning: "CAL" eller "ZERO"
+
+Real-Time Clock (RTC) - Valgfri
+Specifikationer:
+
+IC: DS1307 (8-pin DIP eller SO)
+I²C-adresse: 0x68 (fast)
+Backup-batteri: CR2032 lithium (3V)
+Batterilevetid: > 5 år ved stuetemperatur
+Nøjagtighed: ±2 minutter/måned ved 25°C (kan forbedres med DS3231)
+
+Funktionalitet:
+
+Tidstempling af målinger (hvis data-logging implementeres)
+Drift-tid måler (uptime counter)
+Periodisk kalibrerings-reminder
+Dato/tid display på LCD
+
+Alternativ:
+
+DS3231: Betydeligt højere nøjagtighed (±2ppm ≈ ±1 min/år)
+Temperatursensor inkluderet (kan bruges til temperaturkompensation)
+
+4.1.6 PCB Layout-retningslinjer
+Anbefalet lag-struktur (2-lags PCB)
+Top layer (komponent-side):
+
+Primære signalspor
+SMD komponenter (ADS1115, regulatorer)
+I²C bus-routing
+Force og Sense terminaler
+
+Bottom layer (lodde-side):
+
+Ground plane (ubrudt så vidt muligt)
+Power routing (+5V, +9V)
+Through-hole komponenter (Arduino headers, LCD connector)
+
+Kritiske layout-zoner
+Zone 1: Analog målesektion
+
+ADS1115 og tilhørende komponenter
+Sense-trace routing
+Afkoblekondensatorer (100nF, 10µF)
+Skal være isoleret fra digital switching-støj
+Ground plane uden afbrydelser
+
+Zone 2: Strømforsyning
+
+LM317 konstantstrømkilde
+5V regulator (7805/AMS1117)
+Sikring og polaritetsbeskyttelse
+Heavy ground return paths (> 1mm bredde)
+
+Zone 3: Digital sektion
+
+Arduino Uno headers
+I²C routing
+Kalibreringsknap
+RTC (hvis inkluderet)
+
+Zone 4: Interface
+
+Terminal blocks (Force+/-, Sense+/-)
+LCD connector
+Power input
+
+Trace-bredde specifikationer
+SignalMinimum breddeAnbefalet breddeMaksimal strømForce +/-0,8mm (31 mils)1,2mm (47 mils)100mAGND returns1,0mm (39 mils)2,0mm (79 mils)200mA+5V power0,5mm (20 mils)0,8mm (31 mils)150mASense HI/LO0,2mm (8 mils)0,2mm (8 mils)< 1µAI²C (SDA/SCL)0,3mm (12 mils)0,4mm (16 mils)< 10mADigital I/O0,25mm (10 mils)0,3mm (12 mils)< 40mA
+Via-specifikationer
+
+Standard via: 0,6mm pad, 0,3mm bore
+Power via: 0,8mm pad, 0,4mm bore
+Thermal via: Multiple vias under LM317 og 7805 for varmeafledning
+
+Silkscreen mærkninger
+Alle komponenter skal tydeligt mærkes:
+
+Komponentbetegnelser (R1, C1, D1, etc.)
+Polaritet for dioder og elektrolytter (+/- mærkning)
+Pin 1 indikator for IC'er
+Testpunkter (TP1, TP2, etc.)
+Advarselsmærkninger ved højspænding/strøm
+
+4.2 Strømforsyning og termiske forhold
+4.2.1 LM317 konstantstrøm-konfiguration
+Funktionsprincip
+LM317 er en justerbar 3-terminal positiv spændingsregulator der normalt anvendes til spændingsregulering, men kan konfigureres som en præcis konstantstrømkilde. Regulatoren vedligeholder en konstant referencespænding på 1,25V mellem OUTPUT og ADJ pins, uanset belastning.
+Grundlæggende forbindelse:
+     VIN ──┐
+           │
+        ┌──┴──┐
+        │ LM  │
+VIN ────┤ 317 ├──── VOUT (til DUT)
+        │  T  │
+        └──┬──┘
+           │ADJ
+           │
+        [Rset]
+           │
+          GND
+Drift-princip:
+LM317 regulerer således at spændingen mellem OUTPUT og ADJ er 1,25V. Dette medfører en konstant strøm gennem Rset:
+I_Rset = V_ref / Rset = 1,25V / 12,5Ω = 0,100A = 100mA
+Da ADJ-pinnen kun leder en meget lille strøm (typisk < 100µA), er output-strømmen praktisk identisk med strømmen gennem Rset:
+I_out ≈ I_Rset = 100mA
+Komponentvalg og tolerancer
+Rset modstand:
+
+Nominel værdi: 12,5Ω
+Tolerance: ±0,5% (±62,5mΩ)
+Effekt: 1W (faktisk dissipation: I²R = 0,125W, safety factor 8x)
+Type: Metalfilm (lavt TCR)
+Temperaturkoefficient: < 50ppm/°C (< 0,005%/°C)
+Drifts-effekt: P = (0,1A)² × 12,5Ω = 0,125W
+
+Temperaturafhængighed:
+Ved 50°C stigning over ambient (worst case med dårlig ventilation):
+
+TCR effekt: 50ppm/°C × 50°C = 2500ppm = 0,25%
+Modstandsændring: 12,5Ω × 0,0025 = 31,25mΩ
+Strømændring: Δ = 1,25V / 12,531Ω - 0,100A ≈ -0,2mA
+
+Dette er acceptabelt inden for ±2% specifikationen.
+LM317 referencetolerancer:
+LM317's 1,25V reference har typisk ±5% tolerance ved stuetemperatur, men kan trimmes via Rset-værdien hvis højere præcision kræves. For dette design accepteres den nominelle værdi.
+Strømverificering og trimning
+Verifikationsprocedure:
+
+Forbind præcisionsmodstand (f.eks. 10Ω ±0,1%) som DUT
+Mål spændingsfald med kalibreret multimeter (4½ digit eller bedre)
+Beregn strøm: I = V / R
+Verificer: 98mA ≤ I ≤ 102mA (±2%)
+
+Trimning (hvis nødvendigt):
+Hvis strømmen er uden for tolerance, kan der tilføjes en lille trimme-modstand i serie eller parallel med Rset:
+
+For højere strøm: Parallel modstand (reducerer effektiv Rset)
+For lavere strøm: Serie modstand (øger effektiv Rset)
+
+Beregning:
+Rset_effective = V_ref / I_target = 1,25V / 0,100A = 12,5Ω
+Eksempel: Hvis målt strøm er 103mA (3% høj):
+
+Ønsket Rset: 1,25V / 0,100A = 12,5Ω
+Nuværende effektiv Rset: 1,25V / 0,103A ≈ 12,14Ω
+Nødvendig ændring: +0,36Ω i serie
+Praktisk løsning: Tilføj 0,33Ω ±1% serie-modstand
+
+4.2.2 Termisk management
+LM317 effektdissipation
+Effekten dissiperet i LM317 afhænger af spændingsfaldet over den og output-strømmen:
+P_LM317 = (V_in - V_out - V_ref) × I_out
+Worst-case scenario (minimal DUT-modstand):
+
+V_in = 9V - 0,7V (diode drop) = 8,3V
+V_out ≈ V_ref (minimal spænding over DUT) ≈ 1,25V
+V_LM317 = 8,3V - 1,25V - 0V = 7,05V
+P = 7,05V × 0,1A = 0,705W
+
+Best-case scenario (maksimal DUT-modstand):
+
+V_out = 0,1A × 5Ω = 0,5V
+V_LM317 = 8,3V - 0,5V - 1,25V = 6,55V
+P = 6,55V × 0,1A = 0,655W
+
+Heatsink-design
+LM317T i TO-220 package har følgende termiske karakteristika:
+
+R_θjc: 5°C/W (junction til case)
+R_θja: 50°C/W (junction til ambient uden heatsink)
+T_j(max): 125°C (maksimal junction temperatur)
+
+Uden heatsink:
+T_j = T_ambient + P × R_θja = 25°C + 0,705W × 50°C/W = 60,3°C
+Dette er acceptabelt, men heatsink anbefales for længere levetid og stabilitet.
+Med heatsink (R_θsa = 20°C/W):
+Total termisk modstand:
+R_θja_total = R_θjc + R_θcs + R_θsa
+R_θja_total = 5°C/W + 1°C/W + 20°C/W = 26°C/W
+Junction temperatur:
+T_j = 25°C + 0,705W × 26°C/W = 43,3°C
+Heatsink-specifikationer:
+
+Type: TO-220 ekstruderet aluminium køleprofil
+Termisk modstand: < 20°C/W
+Montering: Direkte på PCB eller panel-mount med termisk interface
+Termisk pasta: Tyndt lag (< 0,1mm) silicone thermal compound
+Isolering: Ikke nødvendig (LM317's metal tab er OUTPUT, ikke kritisk)
+
+Øvrig termisk påvirkning
+Rset opvarmning:
+Effekt: 0,125W
+Typisk modstand: 0603 eller 0805 SMD, eller ¼W through-hole
+Temperaturstigning: < 20°C over ambient (ubetydelig)
+PCB varmeafledning:
+
+Force-traces (0,8-1,2mm): I²R = (0,1)² × R_trace
+For 10cm 1oz kobber (0,035mm tyk): R ≈ 0,05Ω
+Effekt: 0,0005W (negligabel)
+
+Termisk stabilisering:
+Systemet skal stabiliseres i 2-3 minutter efter tænding før præcise målinger foretages, så termiske transienter udlignes.
+
+4.2.3 PCB strømtrace design
+Strømførende traces (Force)
+Dimensionering:
+Copper weight: 1oz/ft² (35µm tykkelse) - standard for de fleste PCB'er
+For 100mA kontinuerlig strøm ved maksimal 10°C temperaturstigning:
+Minimum trace-bredde beregnes fra IPC-2221:
+A = (I / (k × ΔT^b))^(1/c)
+hvor:
+
+I = 0,1A
+k = 0,048 (for 1oz ydre lag)
+ΔT = 10°C
+b = 0,44
+c = 0,725
+
+Resulterende minimum bredde: ≈ 0,15mm (6 mils)
+Anbefalet design:
+
+Minimum bredde: 0,8mm (31 mils) - Safety factor 5x
+Anbefalet bredde: 1,2mm (47 mils) - Safety factor 8x
+Maksimal længde: 15cm (typisk < 10cm på praktisk PCB)
+Maksimal modstand: 0,8mm trace, 10cm længde: R ≈ 0,06Ω
+
+Selv ved worst-case 0,06Ω trace-modstand:
+
+Spændingsfald: V = IR = 0,1A × 0,06Ω = 6mV
+Effekttab: P = I²R = 0,006W (negligabel)
+
+Sense-traces (spændingsmåling)
+Dimensionering:
+Da sense-traces fører < 1µA (ADC input bias strøm), kan de gøres meget tynde:
+Design specifikationer:
+
+Typisk bredde: 0,2mm (8 mils)
+Maksimal længde: 5cm (fra terminal block til ADS1115)
+Layout: Parallelle traces med konstant afstand (differential pair-lignende)
+Afstand mellem traces: 0,5-1,0mm
+Beskyttelse: Guard ring anbefales (forbundet til GND eller AGND)
+
+EMI-beskyttelse:
+Sense traces er følsomme over for elektromagnetisk interferens:
+
+Routing: Hold væk fra:
+
+Switchmode regulator traces (hvis anvendt)
+Arduino PWM pins under drift
+I²C clock signal (SCL)
+Crystal oscillator
+
+
+Guard ring: Surround sense traces med GND track:
+
+  GND ════════════════════
+  Sense+ ─────────────────
+  Sense- ─────────────────
+  GND ════════════════════
+
+Ground plane: Ubrudt ground plane under hele sense-sektionen
+Tvist-teknik: For off-board ledninger kan twisted pair anvendes
+
+GND return paths
+Stjerne-grounding princip:
+For at undgå ground loops og støj-kobling anvendes stjerne-grounding:
+                    ┌─ Analog GND (AGND)
+                    │  └─ ADS1115 GND
+                    │
+Power Supply GND ───┼─ Digital GND (DGND)
+(Battery -)         │  ├─ Arduino GND
+                    │  ├─ LCD GND
+                    │  └─ RTC GND
+                    │
+                    └─ Power GND
+                       └─ LM317 GND (Rset return)
+Praktisk implementering:
+På 2-lags PCB med ground plane er ægte stjerne-grounding svær. I stedet:
+
+Solid ground plane på bottom layer
+Minimal opdeling: Analog og digital sektioner adskilles med "moat"
+Enkelt forbindelsespunkt mellem AGND og DGND
+Tykke traces (> 1mm) for power returns
+
+ 4.3 Use Cases og Brugsscenarier
+
+### 4.3.1 Use Case Format
+
+Alle use cases følger følgende format:
+- **UC-ID**: Unik identifier
+- **Navn**: Beskrivende titel
+- **Actor**: Primær bruger
+- **Prioritet**: MoSCoW klassifikation
+- **Preconditions**: Forudsætninger før start
+- **Main Flow**: Step-by-step normal forløb
+- **Alternative Flows**: Afvigelser fra normal flow
+- **Exception Flows**: Fejlhåndtering
+- **Postconditions**: Systemtilstand efter succesfuld udførsel
+- **Success Criteria**: Målbare succeskriterier
+- **Related Requirements**: FR/NFR-ID'er
+
+### 4.3.2 Primary Use Cases
+
+---
+
+**[UC-001]** Måling af Shunt-modstand
+
+**Actor**: Elektroniktekniker  
+**Prioritet**: MUST  
+**Frequency**: 10-50 gange dagligt (typisk anvendelse)
+
+**Preconditions**:
+- UC-001.PRE.1: System er tændt og har gennemført self-test
+- UC-001.PRE.2: Display viser "Milliohmmeter v5.1"
+- UC-001.PRE.3: System kalibreret indenfor 7 dage
+- UC-001.PRE.4: Teststrøm verificeret til 100mA ±2%
+
+**Main Flow**:
+1. UC-001.MF.1: Bruger forbinder Force+ (rød) til shuntens positive terminal
+2. UC-001.MF.2: Bruger forbinder Force- (sort) til shuntens negative terminal
+3. UC-001.MF.3: Bruger forbinder Sense+ (gul) direkte ved shuntens positive pad
+4. UC-001.MF.4: Bruger forbinder Sense- (grøn) direkte ved shuntens negative pad
+5. UC-001.MF.5: System begynder automatisk måling (ingen knaptryk nødvendig)
+6. UC-001.MF.6: Display viser "Measuring..." i 0,5-2 sekunder
+7. UC-001.MF.7: Display viser stabil modstandsværdi (f.eks. "12.34 mΩ")
+8. UC-001.MF.8: Bruger noterer værdi eller fotograferer display
+9. UC-001.MF.9: Bruger fjerner testledninger
+
+**Alternative Flow AF-001**: Modstand udenfor område
+- UC-001.AF.1: IF målt værdi < 0,001 Ω THEN display "UNDER RANGE"
+- UC-001.AF.2: IF målt værdi > 5,000 Ω THEN display "OVER RANGE"
+- UC-001.AF.3: Bruger verificerer korrekt forbindelse eller vælger andet instrument
+
+**Alternative Flow AF-002**: Ustabil måling
+- UC-001.AF.4: IF standardafvigelse > 5% over 5 sekunder THEN display blinker
+- UC-001.AF.5: Bruger verificerer kontakter og ledninger
+- UC-001.AF.6: Bruger renser kontaktflader hvis nødvendigt
+
+**Exception Flow EF-001**: Åben kreds
+- UC-001.EF.1: IF ingen strøm detekteret THEN display "OPEN CIRCUIT"
+- UC-001.EF.2: Bruger verificerer Force-forbindelser
+
+**Exception Flow EF-002**: Kortslutning i sense-ledninger
+- UC-001.EF.3: IF Sense V < 0,1mV ved kendt DUT THEN display "SENSE SHORT?"
+- UC-001.EF.4: Bruger verificerer Sense-ledninger ikke kortsluttet
+
+**Postconditions**:
+- UC-001.POST.1: Måling logget i buffer (hvis data-logging aktiv)
+- UC-001.POST.2: Display viser seneste stabile værdi
+- UC-001.POST.3: System klar til næste måling
+
+**Success Criteria**:
+- UC-001.SC.1: Måleværdi aflæst indenfor 5 sekunder fra tilslutning
+- UC-001.SC.2: Målenøjagtighed ±1% for 0,010 Ω shunt
+- UC-001.SC.3: Ingen "bounce" eller ustabilitet i display
+
+**Related Requirements**: FR-001, FR-002, FR-020, FR-021, FR-030, FR-031
+
+**Test Cases**: TC-100, TC-101, TC-102
+
+---
+
+**[UC-002]** System Kalibrering - Two-Point
+
+**Actor**: Service-tekniker / Erfaren bruger  
+**Prioritet**: MUST  
+**Frequency**: Ugentligt (anbefalet)
+
+**Preconditions**:
+- UC-002.PRE.1: Præcisionsmodstande tilgængelig (0,001Ω og 10,0Ω ±0,1%)
+- UC-002.PRE.2: Kalibreret multimeter (4½ digit minimum)
+- UC-002.PRE.3: System opvarmet i 5 minutter
+- UC-002.PRE.4: Kalibreringslog-ark fremme
+
+**Main Flow**:
+1. **Zero-point kalibrering**:
+   - UC-002.MF.1: Bruger kortslutter Force+ og Force- med tyk wire (< 1mΩ)
+   - UC-002.MF.2: Bruger kortslutter Sense+ og Sense- til samme punkt
+   - UC-002.MF.3: Bruger holder CAL-knap nede
+   - UC-002.MF.4: Display viser "RAW ADC MODE"
+   - UC-002.MF.5: Display viser "ADC: XXXX" (f.eks. "ADC: 23")
+   - UC-002.MF.6: Bruger noterer RAW ADC-værdi som "offset_ADC"
+   - UC-002.MF.7: Bruger slipper CAL-knap
+
+2. **Span-point kalibrering**:
+   - UC-002.MF.8: Bruger forbinder 10,0Ω ±0,1% reference med 4-leder
+   - UC-002.MF.9: Bruger venter 10 sekunder på stabilisering
+   - UC-002.MF.10: Bruger holder CAL-knap nede
+   - UC-002.MF.11: Display viser "RAW ADC MODE"
+   - UC-002.MF.12: Display viser "ADC: YYYY" (f.eks. "ADC: 8052")
+   - UC-002.MF.13: Bruger noterer RAW ADC-værdi som "span_ADC"
+   - UC-002.MF.14: Bruger slipper CAL-knap
+
+3. **Verifikation**:
+   - UC-002.MF.15: Bruger forbinder eksternt multimeter over 10Ω reference
+   - UC-002.MF.16: Bruger måler spændingsfald (forventet: 1,000V ±10mV)
+   - UC-002.MF.17: Bruger beregner strøm: I = V/10Ω
+   - UC-002.MF.18: Bruger verificerer 98mA ≤ I ≤ 102mA
+
+4. **Software opdatering**:
+   - UC-002.MF.19: Bruger åbner firmware source code
+   - UC-002.MF.20: Bruger opdaterer offset_ADC og span_ADC værdier
+   - UC-002.MF.21: Bruger re-kompilerer og uploader firmware
+   - UC-002.MF.22: System genstarter med nye kalibreringsdata
+
+**Alternative Flow AF-001**: Kalibrering uden code-upload
+- UC-002.AF.1: HVIS FR-042 implementeret (EEPROM storage)
+- UC-002.AF.2: Bruger aktiverer "CALIBRATION MENU" via special key combo
+- UC-002.AF.3: System guider gennem kalibrering step-by-step
+- UC-002.AF.4: System gemmer automatisk til EEPROM
+
+**Exception Flow EF-001**: Offset for høj
+- UC-002.EF.1: IF offset_ADC > 100 (≈12mV) THEN advarselsmeddelelse
+- UC-002.EF.2: Bruger verificerer kortslutning er god (< 1mΩ)
+- UC-002.EF.3: Mulig hardware-fejl hvis problem persisterer
+
+**Exception Flow EF-002**: Strøm udenfor tolerance
+- UC-002.EF.4: IF I < 98mA OR I > 102mA THEN kalibrering invalid
+- UC-002.EF.5: Bruger skal justere Rset (se 4.2.1 Trimning-procedure)
+
+**Postconditions**:
+- UC-002.POST.1: Kalibreringsdata gemt i EEPROM eller firmware
+- UC-002.POST.2: System nøjagtighed verificeret < ±1,5%
+- UC-002.POST.3: Kalibreringsdato logget (hvis RTC aktiv)
+
+**Success Criteria**:
+- UC-002.SC.1: 10Ω reference måles til 9,85Ω - 10,15Ω (±1,5%)
+- UC-002.SC.2: Gentagelighed: σ < 0,01Ω ved 10 målinger
+- UC-002.SC.3: Kalibrering reproducerbar (samme værdier ved gentagelse)
+
+**Related Requirements**: FR-040, FR-041, FR-042, FR-010, FR-002
+
+**Test Cases**: TC-120, TC-121, TC-122
+
+---
+
+**[UC-003]** Batteri-diagnostik - ESR Måling
+
+**Actor**: Battery technician / Service center  
+**Prioritet**: SHOULD  
+**Frequency**: 5-20 gange dagligt (service center)
+
+**Preconditions**:
+- UC-003.PRE.1: Batteri er afladet til < 50% (simulerer belastning)
+- UC-003.PRE.2: Batteri terminals renset for oxidation
+- UC-003.PRE.3: Reference ESR-værdier tilgængelig for batteritype
+
+**Main Flow**:
+1. UC-003.MF.1: Bruger identificerer batteri-type (NiMH, Li-ion, Lead-acid)
+2. UC-003.MF.2: Bruger forbinder Force+ til batteri positive terminal
+3. UC-003.MF.3: Bruger forbinder Force- til batteri negative terminal
+4. UC-003.MF.4: Bruger forbinder Sense+ meget tæt ved positive pad
+5. UC-003.MF.5: Bruger forbinder Sense- meget tæt ved negative pad
+6. UC-003.MF.6: System måler DC-modstand (ESR-approximation)
+7. UC-003.MF.7: Bruger venter 5-10 sekunder på stabil værdi
+8. UC-003.MF.8: Bruger noterer ESR-værdi
+9. UC-003.MF.9: Bruger sammenligner med reference-tabel:
+   - NiMH AA: <100mΩ = God, 100-200mΩ = Acceptabel, >200mΩ = Dårlig
+   - Li-ion 18650: <50mΩ = God, 50-100mΩ = Acceptabel, >100mΩ = Dårlig
+10. UC-003.MF.10: Bruger beslutter om batteri skal udskiftes
+
+**Alternative Flow AF-001**: Multi-celle batteri
+- UC-003.AF.1: Bruger måler hver celle individuelt
+- UC-003.AF.2: Bruger identificerer celle med højest ESR (weakest link)
+
+**Exception Flow EF-001**: Meget høj ESR (> 1Ω)
+- UC-003.EF.1: Display viser høj værdi
+- UC-003.EF.2: Bruger verificerer korrekte forbindelser
+- UC-003.EF.3: IF verificeret THEN batteri kritisk defekt (internal open)
+
+**Postconditions**:
+- UC-003.POST.1: ESR-værdi noteret i service-log
+- UC-003.POST.2: Pass/Fail beslutning truffet
+- UC-003.POST.3: Batteri mærket hvis defekt
+
+**Success Criteria**:
+- UC-003.SC.1: ESR-måling tager < 15 sekunder total
+- UC-003.SC.2: Målenøjagtighed tillader korrekt pass/fail beslutning
+- UC-003.SC.3: Repeaterbarhed ±5% ved samme batteri
+
+**Related Requirements**: FR-001, FR-002, FR-020
+
+**Test Cases**: TC-140, TC-141
+
+---
+
+**[UC-004]** PCB Trace Verifikation
+
+**Actor**: PCB quality inspector / Production engineer  
+**Prioritet**: SHOULD  
+**Frequency**: Kontinuerlig (production line)
+
+**Preconditions**:
+- UC-004.PRE.1: PCB design-specifikation tilgængelig (forventet trace-modstand)
+- UC-004.PRE.2: PCB ren (ingen flux eller contamination)
+- UC-004.PRE.3: Probe-kontakter egnet til SMD pads
+
+**Main Flow**:
+1. UC-004.MF.1: Bruger identificerer kritisk power trace på PCB
+2. UC-004.MF.2: Bruger placerer Force-prober ved trace endpoints
+3. UC-004.MF.3: Bruger placerer Sense-prober mellem Force-prober
+4. UC-004.MF.4: System måler trace-modstand
+5. UC-004.MF.5: Bruger sammenligner med design-spec (f.eks. 10cm 1oz trace = 60mΩ)
+6. UC-004.MF.6: IF måling < spec + 20% THEN PASS ELSE FAIL
+
+**Alternative Flow AF-001**: Via-chain test
+- UC-004.AF.1: Bruger måler modstand gennem multiple vias
+- UC-004.AF.2: Verificerer vias ikke cold-soldered eller cracked
+
+**Success Criteria**:
+- UC-004.SC.1: Måling < 10 sekunder per trace
+- UC-004.SC.2: Detekterer 50% trace-brud (fordoblet modstand)
+
+**Related Requirements**: FR-001, FR-002
+
+**Test Cases**: TC-150
+
+---
+
+**[UC-005]** SCPI Remote Control - Automated Testing
+
+**Actor**: Automated test equipment (ATE) / LabVIEW application  
+**Prioritet**: COULD  
+**Frequency**: Kontinuerlig i automatiseret setup
+
+**Preconditions**:
+- UC-005.PRE.1: Milliohmmeter forbundet via USB (Serial)
+- UC-005.PRE.2: SCPI driver installeret i test-software
+- UC-005.PRE.3: COM port konfigureret (115200 baud, 8N1)
+
+**Main Flow**:
+1. UC-005.MF.1: ATE sender "*IDN?\n"
+2. UC-005.MF.2: Instrument svarer "Milliohmmeter v5.1, SN:12345\n"
+3. UC-005.MF.3: ATE verificerer korrekt instrument
+4. UC-005.MF.4: ATE sender "MEAS?\n"
+5. UC-005.MF.5: Instrument svarer "0.123456\n" (modstand i ohm)
+6. UC-005.MF.6: ATE parser værdi og logger til database
+7. UC-005.MF.7: ATE gentager step 4-6 for alle DUTs
+
+**Alternative Flow AF-001**: Batch data export
+- UC-005.AF.1: Efter 100 målinger sender ATE "EXPORT:CSV?\n"
+- UC-005.AF.2: Instrument sender alle buffered målinger i CSV-format
+- UC-005.AF.3: ATE gemmer til fil for analyse
+
+**Exception Flow EF-001**: Communication timeout
+- UC-005.EF.1: IF ingen svar efter 2 sekunder THEN retry
+- UC-005.EF.2: IF 3 failures THEN flag communication error
+
+**Success Criteria**:
+- UC-005.SC.1: Measurement cycle < 1 sekund (query + response)
+- UC-005.SC.2: 100% command recognition rate
+- UC-005.SC.3: No dropped characters ved 115200 baud
+
+**Related Requirements**: IR-010, IR-011, FR-060, FR-061
+
+**Test Cases**: TC-200, TC-201
+
+5. Funktionelle krav
+
+# 5. Funktionelle Krav
+
+## 5.0 Kravsoversigt og Prioritering
+
+### 5.0.1 Krav-ID System
+
+Alle krav identificeres med unikke ID'er efter følgende format:
+- **FR-XXX**: Functional Requirements (Funktionelle krav)
+- **NFR-XXX**: Non-Functional Requirements (Ikke-funktionelle krav)
+- **SR-XXX**: Safety Requirements (Sikkerhedskrav)
+- **IR-XXX**: Interface Requirements (Interface-krav)
+- **DR-XXX**: Design Requirements (Design-krav)
+
+Hvert krav har følgende attributter:
+- **Prioritet**: MoSCoW klassifikation
+- **Status**: Draft/Approved/Implemented/Verified
+- **Verificering**: Test/Analyse/Inspektion/Demonstration
+- **Rationale**: Begrundelse for kravet
+- **Owner**: Ansvarlig for implementering
+
+### 5.0.2 MoSCoW Prioritering
+
+**Must Have (M)** - Kritiske krav uden hvilke systemet ikke fungerer:
+- Grundlæggende måleområde og nøjagtighed
+- 4-leder Kelvin-måling
+- Konstantstrøm kilde
+- Basis display funktionalitet
+- Sikkerhedsfunktioner
+
+**Should Have (S)** - Vigtige krav der væsentligt forbedrer systemet:
+- Oversampling for forbedret opløsning
+- Kalibreringsfunktion
+- Auto-ranging display
+- SCPI interface
+
+**Could Have (C)** - Ønskelige features der tilføjer værdi:
+- RTC med tidsstempling
+- Data-logging
+- Temperaturkompensation
+- XML/CSV export
+
+**Won't Have (W)** - Eksplicit udelukket i denne version:
+- Trådløs kommunikation (WiFi/Bluetooth)
+- Touchscreen interface
+- Multi-kanal måling
+- Automatisk komponent-sortering
+
+## 5.1 Måleområde og Opløsning (Prioriteret)
+
+### 5.1.1 Måleområde - Funktionelle Krav
+
+**[FR-001]** Måleområde - Minimum
+- **Krav**: Systemet SKAL måle modstande fra 0,010 Ω til 5,000 Ω
+- **Prioritet**: MUST
+- **Rationale**: Dækker 80% af typiske low-ohm målinger
+- **Verificering**: Test med reference-modstande
+- **Status**: Approved
+- **Test-ID**: TC-001, TC-002
+
+**[FR-002]** Målenøjagtighed - System
+- **Krav**: Efter kalibrering SKAL total målefejl være < ±1,5% over hele området
+- **Prioritet**: MUST
+- **Rationale**: Industri-standard for hobbyinstrumenter
+- **Verificering**: Test med kalibrerede reference-modstande
+- **Status**: Approved
+- **Test-ID**: TC-003, TC-004, TC-005
+
+**[FR-003]** Opløsning - Display
+- **Krav**: Systemet SKAL vise modstand med minimum 10 µΩ opløsning
+- **Prioritet**: SHOULD
+- **Rationale**: Giver meningsfuld præcision i lavohm-området
+- **Verificering**: Analyse af ADC + oversampling
+- **Status**: Approved
+- **Test-ID**: AN-001
+
+**[FR-004]** Udvidet måleområde
+- **Krav**: Systemet KAN udvides til 0,001 Ω - 100 Ω med firmware-opdatering
+- **Prioritet**: COULD
+- **Rationale**: Fremtidig udvidelsesmulighed
+- **Verificering**: Design review
+- **Status**: Draft
+- **Test-ID**: N/A
+
+### 5.1.2 Teststrøm - Funktionelle Krav
+
+**[FR-010]** Konstantstrøm - Værdi
+- **Krav**: Teststrømmen SKAL være 100 mA ± 2%
+- **Prioritet**: MUST
+- **Rationale**: Balance mellem præcision og sikkerhed
+- **Verificering**: Test med præcisions-multimeter
+- **Status**: Approved
+- **Test-ID**: TC-010
+
+**[FR-011]** Strømstabilitet - Korttid
+- **Krav**: Strømvariation SKAL være < 0,1% over 10 sekunder
+- **Prioritet**: SHOULD
+- **Rationale**: Sikrer stabil måling
+- **Verificering**: Test med oscilloskop + shunt
+- **Status**: Approved
+- **Test-ID**: TC-011
+
+**[FR-012]** Strømverifikation - Brugertilgængelig
+- **Krav**: Systemet BØR vise teststrøm på display
+- **Prioritet**: SHOULD
+- **Rationale**: Bruger kan verificere korrekt funktion
+- **Verificering**: Inspektion
+- **Status**: Approved
+- **Test-ID**: IN-001
+
+### 5.1.3 Kelvin-måling - Funktionelle Krav
+
+**[FR-020]** 4-leder måling - Obligatorisk
+- **Krav**: Systemet SKAL anvende 4-leder Kelvin-måling
+- **Prioritet**: MUST
+- **Rationale**: Eliminerer lednings- og kontaktmodstand
+- **Verificering**: Design review + test
+- **Status**: Approved
+- **Test-ID**: DR-001, TC-020
+
+**[FR-021]** Sense impedans - Minimum
+- **Krav**: Sense-indgang SKAL have impedans > 100 MΩ
+- **Prioritet**: MUST
+- **Rationale**: Sikrer negligerbar strøm gennem sense-ledninger
+- **Verificering**: Test med impedans-analyzer
+- **Status**: Approved
+- **Test-ID**: TC-021
+
+**[FR-022]** Klemme-design - Anbefalet
+- **Krav**: Systemet BØR leveres med dedikerede Kelvin-klemmer
+- **Prioritet**: SHOULD
+- **Rationale**: Forbedrer brugeroplevelse og nøjagtighed
+- **Verificering**: Procurement specification
+- **Status**: Draft
+- **Test-ID**: N/A
+
+### 5.1.4 Display og Interface - Funktionelle Krav
+
+**[FR-030]** Display - Type
+- **Krav**: Systemet SKAL have 20x2 LCD display med I²C interface
+- **Prioritet**: MUST
+- **Rationale**: Tilstrækkelig information uden kompleksitet
+- **Verificering**: Inspektion
+- **Status**: Approved
+- **Test-ID**: IN-010
+
+**[FR-031]** Auto-ranging - Display
+- **Krav**: Display SKAL automatisk vælge enhed (µΩ/mΩ/Ω)
+- **Prioritet**: SHOULD
+- **Rationale**: Forbedret læsbarhed
+- **Verificering**: Test
+- **Status**: Approved
+- **Test-ID**: TC-031
+
+**[FR-032]** Opdateringsfrekvens - Display
+- **Krav**: Display SKAL opdateres 2-5 gange per sekund
+- **Prioritet**: SHOULD
+- **Rationale**: Real-time feedback uden flimmer
+- **Verificering**: Test med high-speed kamera
+- **Status**: Approved
+- **Test-ID**: TC-032
+
+**[FR-033]** Backlight kontrol
+- **Krav**: Backlight KAN slukkes via software
+- **Prioritet**: COULD
+- **Rationale**: Strømbesparelse
+- **Verificering**: Test
+- **Status**: Draft
+- **Test-ID**: TC-033
+
+### 5.1.5 Kalibrering - Funktionelle Krav
+
+**[FR-040]** Kalibreringsknap - Tilgængelighed
+- **Krav**: Systemet SKAL have let tilgængelig kalibreringsknap
+- **Prioritet**: MUST
+- **Rationale**: Hyppig kalibrering nødvendig for præcision
+- **Verificering**: Inspektion
+- **Status**: Approved
+- **Test-ID**: IN-020
+
+**[FR-041]** RAW ADC mode
+- **Krav**: Systemet SKAL vise RAW ADC-værdi ved tryk på CAL-knap
+- **Prioritet**: MUST
+- **Rationale**: Nødvendig for two-point kalibrering
+- **Verificering**: Test
+- **Status**: Approved
+- **Test-ID**: TC-041
+
+**[FR-042]** Kalibreringsdata - Persistent
+- **Krav**: Kalibreringsdata SKAL gemmes i EEPROM
+- **Prioritet**: MUST
+- **Rationale**: Overlever power-cycle
+- **Verificering**: Test med power-cycle
+- **Status**: Approved
+- **Test-ID**: TC-042
+
+**[FR-043]** Kalibrerings-reminder
+- **Krav**: Systemet BØR advare hvis kalibrering > 7 dage gammel
+- **Prioritet**: COULD
+- **Rationale**: Sikrer vedligeholdelse af nøjagtighed
+- **Verificering**: Test (kræver RTC)
+- **Status**: Draft
+- **Dependencies**: FR-051 (RTC)
+- **Test-ID**: TC-043
+
+### 5.1.6 Real-Time Clock - Funktionelle Krav
+
+**[FR-050]** RTC - Installation
+- **Krav**: Systemet KAN inkludere DS1307 eller DS3231 RTC
+- **Prioritet**: COULD
+- **Rationale**: Aktiverer tidsstempling og advanced features
+- **Verificering**: Design review
+- **Status**: Draft
+- **Test-ID**: N/A
+
+**[FR-051]** Tidsstempling - Målinger
+- **Krav**: HVIS RTC installeret, SKAL alle målinger tidsstemples
+- **Prioritet**: COULD (conditional on FR-050)
+- **Rationale**: Data-logging funktionalitet
+- **Verificering**: Test
+- **Status**: Draft
+- **Dependencies**: FR-050
+- **Test-ID**: TC-051
+
+**[FR-052]** Batterilevetid - RTC
+- **Krav**: RTC backup-batteri SKAL holde > 5 år
+- **Prioritet**: SHOULD (if implemented)
+- **Rationale**: Minimal vedligeholdelse
+- **Verificering**: Calculation + datasheet review
+- **Status**: Draft
+- **Dependencies**: FR-050
+- **Test-ID**: AN-010
+
+### 5.1.7 Data-logging - Funktionelle Krav
+
+**[FR-060]** Data buffer
+- **Krav**: Systemet KAN buffere op til 100 målinger
+- **Prioritet**: COULD
+- **Rationale**: Statistisk analyse
+- **Verificering**: Test + RAM-analyse
+- **Status**: Draft
+- **Test-ID**: TC-060, AN-020
+
+**[FR-061]** SCPI export - CSV
+- **Krav**: HVIS data-logging implementeret, SKAL "EXPORT:CSV?" understøttes
+- **Prioritet**: SHOULD (conditional)
+- **Rationale**: Standard dataformat
+- **Verificering**: Test
+- **Status**: Draft
+- **Dependencies**: FR-060
+- **Test-ID**: TC-061
+
+**[FR-062]** SCPI export - XML
+- **Krav**: Systemet KAN understøtte "EXPORT:XML?"
+- **Prioritet**: WON'T HAVE (v1.0)
+- **Rationale**: Unødvendig kompleksitet, begrænset RAM
+- **Verificering**: N/A
+- **Status**: Rejected for v1.0
+- **Test-ID**: N/A
+5.1 Måleområde og opløsning
+5.1.1 Specificeret måleområde
+Milliohmmetret er designet til at dække et specifikt område af modstandsværdier med høj præcision og opløsning.
+Nominelt måleområde:
+R_min = 0,001 Ω (1 mΩ)
+R_max = 5,000 Ω (5 Ω)
+Ratio = R_max / R_min = 5000:1
+Teoretisk begrundelse for grænser
+Nedre grænse (1 mΩ):
+Ved 100mA teststrøm genererer 1mΩ et spændingsfald:
+V = I × R = 0,1A × 0,001Ω = 0.1mV
+ADS1115 kan måle ned til enkelt LSB ved ±2,048V gain setting:
+LSB = 2,048V / 32768 = 62,5µV
+Signal-til-støj-forhold ved 1mV:
+SNR = 1mV / 62,5µV ≈ 16:1 (før oversampling)
+Med 256x oversampling forbedres effektivt SNR til:
+SNR_effective ≈ 16 × √256 = 16 × 16 = 256:1
+Dette giver tilstrækkelig opløsning og nøjagtighed selv ved den nedre grænse.
+Øvre grænse (5 Ω):
+Ved 5Ω genereres et spændingsfald:
+V = I × R = 0,1A × 5Ω = 0.5V
+Dette er under ADS1115's maksimale input på ±4,096V ved GAIN_ONE, hvilket sikrer ingen saturation.
+Spændingen over LM317 bliver:
+V_LM317 = V_supply - V_DUT - V_ref
+V_LM317 = 8,3V - 0.5V - 1,25V = 6,55V
+Dette er tilstrækkeligt til at LM317 kan regulere korrekt (minimum dropout: 2-3V).
+Udvidet område (0,001-100 Ω):
+Systemet kan potentielt måle ned til 1mΩ og op til 100Ω med modificeret firmware og multi-range gain settings, men dette kræver:
+
+Flere gain-indstillinger (GAIN_SIXTEEN for 0-1mΩ)
+Højere supply-spænding for > 40Ω
+Mere kompleks auto-ranging logik
+
+For dette design fastholdes 10mΩ - 5Ω som det garanterede område.
+5.1.2 Numerisk opløsning
+Defineret opløsning:
+Opløsning ≤ 0,01 mΩ = 10 µΩ
+Dette betyder at de to mindst signifikante cifre kan skelne mellem modstande der adskiller sig med 10µΩ.
+ADC-baseret opløsning
+ADS1115 grundlæggende opløsning:
+16-bit ADC med ±4,096V range (GAIN_ONE):
+LSB = 2,048V / 2^16 = 2,048V / 65536 = 31,25µV
+Ved 100mA teststrøm svarer dette til:
+R_LSB = V_LSB / I = 31,25µV / 0,1A = 0,3125mΩ
+Dette er 31,25x større end ønsket 10µΩ opløsning!
+Oversampling og averaging
+For at opnå højere effektiv opløsning anvendes oversampling-teknik:
+Teori:
+Ved at tage N samples og beregne gennemsnittet reduceres støj med faktor √N, hvilket effektivt øger opløsningen med log2(√N) bits.
+For at øge opløsningen med n ekstra bits kræves:
+N = 4^n samples
+Implementering:
+For at øge fra 16-bit (0,625mΩ) til effektiv 24-bit opløsning:
+Extra bits = 24 - 16 = 8 bits
+N = 4^8 = 65536 samples
+Dette er upraktisk langt! I stedet implementeres:
+Praktisk oversampling-strategi:
+Samples per blok: 64
+Antal blokke: 4
+Total samples: 64 × 4 = 256
+Dette giver:
+Støjreduktion = √256 = 16x
+Ekstra bits = log2(16) = 4 bits
+Effektiv opløsning = 16 + 4 = 20 bits
+Effektiv LSB:
+LSB_effective = 31,25µV / 16 ≈ 1,95µV
+R_LSB_effective = 1,95µV / 0,1A ≈ 0,0195mΩ = 19.5µΩ
+Dette er indenfor 4x af målet (10µΩ), hvilket er acceptabelt med yderligere software-filtrering.
+Digital filtrering
+Moving average filter:
+Ved at anvende et glidende gennemsnit over de sidste 8-16 målinger kan effektiv opløsning forbedres yderligere:
+Filter længde: 16 målinger
+Ekstra støjreduktion: √16 = 4x
+Final effektiv opløsning: 19.5µΩ / 4 ≈ 4.8µΩ
+Implementering:
+cpp// Circular buffer for moving average
+float measurements[16];
+uint8_t index = 0;
+
+float getFilteredReading() {
+  // Take new measurement
+  measurements[index] = readADS1115();
+  index = (index + 1) % 16;
+  
+  // Calculate average
+  float sum = 0;
+  for(int i = 0; i < 16; i++) {
+    sum += measurements[i];
+  }
+  return sum / 16.0;
+}
+5.1.3 Display-formatering og auto-ranging
+For at præsentere målinger intuitivt implementeres automatisk enhedsvalg:
+Display-regler:
+ModstandsområdeEnhedDecimalerEksempel0,000010 - 0,000999 ΩµΩ0"123 µΩ"0,001000 - 0,999999 ΩmΩ2"12.34 mΩ"1,000000 - 4,999999 ΩΩ3"1.234 Ω"1,00000 - 5,00000 ΩΩ2"1.34 Ω"
+Auto-ranging logik:
+cppString formatResistance(float ohms) {
+  if (ohms < 0.001) {
+    // Display in µΩ
+    return String((int)(ohms * 1e6)) + " µΩ";
+  } 
+  else if (ohms < 1.0) {
+    // Display in mΩ with 2 decimals
+    return String(ohms * 1000, 2) + " mΩ";
+  }
+  else if (ohms < 10.0) {
+    // Display in Ω with 3 decimals
+    return String(ohms, 3) + " Ω";
+  }
+  else {
+    // Display in Ω with 2 decimals
+    return String(ohms, 2) + " Ω";
+  }
+}
+5.1.4 Nøjagtighedsspecifikationer
+Linearitet (INL - Integral Non-Linearity)
+ADS1115 specifikationer:
+
+INL: ±2 LSB maximum ved GAIN_ONE
+DNL: ±1 LSB (Differential Non-Linearity)
+
+Ved 16-bit opløsning betyder ±2 LSB:
+Linearitetsfejl = ±2 × 62,5µV = ±125µV
+Modstandsfejl = ±125µV / 0,1A = ±1,25mΩ
+For en måling ved 100mΩ:
+Linearitetsfejl% = (1,25mΩ / 100mΩ) × 100% = 1,25%
+Dette er indenfor den accepterede ±1 LSB over hele området, hvilket bekræfter ADS1115's egnethed.
+Total målefejl
+Samlet målefejl er summen af flere komponenter:
+Fejlkomponenter:
+
+Strøm-tolerance: ±2% (fra LM317 og Rset)
+ADC INL: ±0,5% (typisk, mindre end max spec)
+ADC gain-fejl: ±0,2% (kan kalibreres ud)
+ADC offset: ±3mV (kan kalibreres ud)
+Termiske effekter: ±0,3% over 0-50°C
+Langstidsdrift: ±0,3% over 1 år
+
+Før kalibrering:
+Total fejl ≈ √(2² + 0,5² + 0,2² + 0,3² + 0,3²) ≈ ±2,1%
+Efter kalibrering:
+Ved at kalibrere med præcisionsmodstand (±0,1%) kan gain og offset elimineres:
+Total fejl ≈ √(2² + 0,5² + 0,3² + 0,3²) ≈ ±2,1% → ±1,4%
+Specificeret krav:
+Samlet målefejl efter kalibrering: < ±1,5%
+Dette opnås gennem:
+
+Præcisions Rset (±0,5%)
+Stabil LM317 reference
+Software-kalibrering
+Temperaturkompensation (hvis RTC med temp-sensor anvendes)
+
+5.2 Teststrøm
+5.2.1 Konstantstrøm-specifikationer
+Nominelt værdi:
+I_test = 100 mA ± 2%
+Tolerance interval: 98 mA ≤ I_test ≤ 102 mA
+Strømstabilitet
+Kortsigtsstabilitet (< 1 sekund):
+LM317's line og load regulation:
+
+Line regulation: 0,01% / V typisk
+Load regulation: 0,3% (0mA til 1,5A)
+
+Langstidsstabilitet:
+Primære faktorer:
+
+Temperatur: Rset TCR 50ppm/°C
+Batterispænding: 9V → 7V over batteriets levetid
+Komponent-aging: < 0,1% / år for quality komponenter
+
+Langstids-drift over 1 års brug: < ±0,5%
+5.2.2 Strømverifikation
+Verifikations-procedure:
+Før systemet tages i brug skal teststrømmen verificeres med kalibreringsudstyr:
+Nødvendigt udstyr:
+
+Præcisionsmodstand: 10Ω ±0,1% eller bedre
+Kalibreret multimeter: 4½ digit minimum (0,01% nøjagtighed)
+
+Målemetode:
+
+Forbind præcisionsmodstand som DUT:
+
+Force+ og Force- til modstandens terminaler
+Sense+ og Sense- kortsluttes eller også til modstandens terminaler
+
+
+Tænd for milliohmmeter:
+
+Lad systemet stabilisere i 2 minutter
+
+
+Mål spændingsfaldet:
+
+Brug eksternt multimeter over præcisionsmodstanden
+Aflæs spænding (forventet: ≈ 1,000V for 10Ω)
+
+
+Beregn strøm:
+
+   I_test = V_measured / R_precision
+
+Verificer tolerance:
+
+   Acceptabel hvis: 0,98A ≤ I_test ≤ 1,02A
+Trimning-procedure:
+Hvis strømmen er uden for tolerance:
+Strøm for høj (> 102mA):
+
+Tilføj serie-modstand til Rset
+Nødvendig værdi: R_add = (V_ref / I_målte) - R_set
+
+Strøm for lav (< 98mA):
+
+Reducer Rset ved parallel modstand
+Eller udskift Rset med lavere værdi
+
+Eksempel:
+Målt strøm: 103mA (3% for høj)
+
+Nuværende effektiv Rset = 1,25V / 0,103A = 12,14Ω
+Ønsket Rset = 1,25V / 0,100A = 12,50Ω
+Manglende: 0,36Ω
+Tilføj: 0,33Ω eller 0,39Ω serie-modstand
+
+5.3 4-leder Kelvin-måling
+5.3.1 Kelvin-forbindelsesprincip
+4-leder Kelvin-måling er fundamentalt for milliohmmetrets nøjagtighed. Princippet er baseret på adskillelse af strøm- og spændingsmålesti.
+Fundamental teori:
+I en 2-leder måling:
+V_målt = I × (R_wire1 + R_DUT + R_wire2 + R_contact)
+I en 4-leder måling:
+V_målt = V_DUT (kun!)
+Dette opnås fordi spændingsmålingen sker med neglicerbar strøm gennem sense-ledningerne.
+5.3.2 Hardware-implementering
+Force-forbindelser (Strømsti):
+LM317 OUT (Force+) → Terminal TB1-1 → Testledning → Testklemme → DUT
+DUT → Testklemme → Testledning → Terminal TB1-2 → GND (Force-)
+Karakteristika:
+
+Strøm: 100mA konstant
+Ledningsmodstand: Irrelevant (kan være 1Ω uden påvirkning)
+Kontaktmodstand: Irrelevant
+Ledningstype: 20-22 AWG, fleksibel
+
+Sense-forbindelser (Spændingsmåling):
+DUT (+) → Testklemme → Testledning → Terminal TB2-1 → ADS1115 A0 (Sense HI)
+DUT (-) → Testklemme → Testledning → Terminal TB2-2 → ADS1115 A1 (Sense LO)
+Kritiske krav:
+
+Placering: Sense-kontakter DIREKTE ved DUT-terminaler
+Strøm: < 1µA (ADS1115 input bias current)
+Impedans: > 100MΩ (ADS1115 input impedans)
+Ledningstype: Skærmet eller twisted pair anbefales
+Længde: < 1 meter (minimér støjopsamling)
+
+5.3.3 ADS1115 forbindelse
+Differential mode konfiguration:
+ADS1115 Configuration:
+- Input: A0 (Sense HI) minus A1 (Sense LO)
+- Mode: Continuous conversion eller Single-shot
+- Gain: GAIN_ONE (±4,096V)
+- Data rate: 128 SPS (balancerer hastighed og støj)
+I²C kommandoer (Arduino):
+cpp#include <Adafruit_ADS1X15.h>
+
+Adafruit_ADS1115 ads;
+
+void setupADC() {
+  ads.begin();
+  
+  // Configure for differential reading A0-A1
+  ads.setGain(GAIN_ONE);        // ±4.096V
+  ads.setDataRate(RATE_ADS1115_128SPS);
+}
+
+float readDifferentialVoltage() {
+  // Read A0 minus A1
+  int16_t adc = ads.readADC_Differential_0_1();
+  
+  // Convert to voltage
+  float voltage = ads.computeVolts(adc);
+  
+  return voltage;
+}
+5.3.4 Praktisk testopsætning
+Klemme-design:
+Testklemmerne er kritiske for korrekt Kelvin-måling:
+        Force+
+          │
+    ┌─────┴─────┐
+    │           │
+    │    DUT    │
+    │           │
+    └─────┬─────┘
+          │
+        Force-
+
+   Sense+     Sense-
+     │           │
+     └─────┬─────┘
+           │
+         DUT
+Klemme-krav:
+
+Separate force og sense kontakter
+Sense-kontakter placeret INDEN force-kontakter (tættere på DUT)
+God fjeder-kraft for stabil kontakt
+Forgyldte kontakter (minimér oxidation)
+Isolerede håndtag
+
+Kommerciel løsning:
+Kelvin-klemmer (4-wire test clips) er tilgængelige kommercielt:
+
+Type: Spring-loaded alligator clips med 4 terminaler
+Materiale: Forgyldt messing
+Kontaktkraft: 200-500gf
+Pris: $10-30 per par
+
+DIY løsning:
+For prototype kan bruges:
+
+To sæt standard alligatorklemmer
+Force-klemmer: Standard test leads
+Sense-klemmer: Tynde ledninger direkte loddet til målepunkter
+
+5.4 ADC-systemkrav
+5.4.1 ADS1115 specifikationer
+Grundlæggende parametre:
+Parameter	Værdi			Kommentar		
+Opløsning 	16 bit2^16 		= 65536 niveauer	
+Sample rate	8 - 860 SPS		Samples per second
+Input channels	4 single / 2 diff	Multiplexed
+Input range 	(GAIN_FOUR)±2,048V	Programmerbar
+LSB size 	(GAIN_FOUR)6.25uV	2,048V / 32768
+Input impedance	> 100MΩ 		Typisk > 1GΩ	
+Interface	I²C			7-bit adresse 0x48
+
+5.4.2 Differential mode operation
+Hvorfor differential?
+Differential måling eliminerer:
+
+Common-mode støj: Støj der påvirker begge inputs ens
+Ground potential-forskel: Mellem ADC og DUT
+Offset-fejl: Systematiske fejl reduceres
+
+Konfiguration:
+cpp// Differential reading: A0 minus A1
+int16_t readADC() {
+  return ads.readADC_Differential_0_1();
+}
+Output:
+16-bit signed integer:
+
+Positive værdier: A0 > A1 (normal måling)
+Negative værdier: A0 < A1 (modsat polaritet)
+Range: -32768 til +32767
+
+Konvertering til spænding:
+V_differential = ADC_value × LSB_size
+V_differential = ADC_value × (4,096V / 32768)
+5.4.3 Gain selection
+ADS1115 har programmerbar gain amplifier (PGA):
+Gain SettingFull Scale RangeLSB SizeAnvendelseGAIN_TWOTHIRDS±6,144V187,5µVStort DUT (> 50Ω)GAIN_ONE±4,096V125µVStandard (0,01-5Ω)GAIN_TWO±2,048V62,5µVMellem (0,01-1Ω)GAIN_FOUR±1,024V31,25µVLille DUT (< 10Ω)GAIN_EIGHT±0,512V15,625µVMeget lille (< 5Ω)GAIN_SIXTEEN±0,256V7,8125µVEkstremt lille (< 2,5Ω)
+For dette design:
+Med 100mA teststrøm og 5Ω max DUT:
+V_max = 0,1A × 3.75Ω = 0.375V
+Valgt gain: GAIN_FOUR (±2,048V)
+
+Ingen saturation op til 40,96Ω
+God opløsning (1,25mΩ ved 100mA)
+Sikkerhedsmargin: 24%
+
+Auto-ranging (fremtidig forbedring):
+Software kan implementere automatisk gain-valg:
+cppfloat readWithAutoGain() {
+  // Start med GAIN_ONE
+  ads.setGain(GAIN_ONE);
+  int16_t value = ads.readADC_Differential_0_1();
+  
+  // Check for near-saturation (> 90% af range)
+  if (abs(value) > 29490) {
+    // Switch to lower gain
+    ads.setGain(GAIN_TWOTHIRDS);
+    value = ads.readADC_Differential_0_1();
+  }
+  
+  // Check for low signal (< 10% af range)
+  if (abs(value) < 3276) {
+    // Switch to higher gain
+    ads.setGain(GAIN_TWO);
+    value = ads.readADC_Differential_0_1();
+  }
+  
+  return ads.computeVolts(value);
+}
+5.4.4 Sample rate selection
+Tilgængelige sample rates (ADS1115):
+8, 16, 32, 64, 128, 250, 475, 860 SPS
+Trade-off:
+
+Højere rate: Hurtigere målinger, mere støj
+Lavere rate: Langsommere, mindre støj (bedre filtrering)
+
+Valgt rate for dette design: 128 SPS
+Begrundelse:
+
+Balancerer hastighed og støj-undertrykkelse
+Sufficient for realtime display update (> 10 Hz)
+Indbygget 128 SPS sinc³ filter reducerer støj effektivt
+
+Måletid ved oversampling:
+Med 256 samples ved 128 SPS:
+Tid = 256 / 128 = 2 sekunder per fuld måling
+Dette opdateres til display som glidende gennemsnit, så bruger ser kontinuerlig opdatering.
+5.4.5 Oversampling strategi
+Implementering:
+Stage 1: 64 samples (burst)
+  └─→ Average → intermediate result
+  
+Stage 2: 4 bursts
+  └─→ Average → final result
+  
+Total: 64 × 4 = 256 samples
+Effektiv ekstra bits: log2(√256) = 4 bits
+Software implementering:
+cppfloat oversampledRead() {
+  const int BURST_SIZE = 64;
+  const int NUM_BURSTS = 4;
+  
+  float burst_sum = 0;
+  
+  // Take 4 bursts
+  for (int burst = 0; burst < NUM_BURSTS; burst++) {
+    float sample_sum = 0;
+    
+    // Take 64 samples in burst
+    for (int i = 0; i < BURST_SIZE; i++) {
+      int16_t adc = ads.readADC_Differential_0_1();
+      sample_sum += ads.computeVolts(adc);
+      delayMicroseconds(100); // Brief pause between samples
+    }
+    
+    burst_sum += (sample_sum / BURST_SIZE);
+    delay(10); // Pause between bursts
+  }
+  
+  return burst_sum / NUM_BURSTS;
+}
+Effektiv opløsning:
+Original: 16 bits (65536 niveauer)
+Efter oversampling: 20 bits effektivt (1.048.576 niveauer)
+Opløsning = 125µV / 16 ≈ 7,8µV
+Modstandsopløsning = 0.19µV / 0,1A = 1.95µΩ
+Med yderligere moving average filter → 10µΩ som specificeret.
+5.5 Kalibreringsknap og -funktion
+5.5.1 Hardware-konfiguration
+Knap-specifikation:
+
+Type: Momentary tactile pushbutton, SPST, normally open
+Placering: Front panel, let tilgængelig
+Mærkning: "CAL" eller "ZERO/CAL"
+
+Elektrisk tilslutning:
+                +5V
+                 │
+               [47kΩ] ← Intern pull-up (INPUT_PULLUP)
+                 │
+     D2 ─────────┼───── Midtpunkt
+                 │
+               [SW1] ← Kalibreringsknap
+                 │
+                GND
+Arduino konfiguration:
+cppconst int CAL_BUTTON_PIN = 2;
+
+void setup() {
+  pinMode(CAL_BUTTON_PIN, INPUT_PULLUP);
+  // Button HIGH når ikke trykket (pull-up)
+  // Button LOW når trykket (til GND)
+}
+5.5.2 Debouncing
+Mekaniske kontakter "bouncer" når de aktiveres, hvilket skaber multiple transitions over 1-10ms.
+Problem uden debounce:
+Button press:
+  _____    __    _____
+       |__|  |__|      Mechanical bounce
+       
+Detected as multiple presses!
+Software debounce:
+cppbool readDebouncedButton() {
+  static unsigned long lastDebounceTime = 0;
+  static bool lastButtonState = HIGH;
+  static bool buttonState = HIGH;
+  
+  bool reading = digitalRead(CAL_BUTTON_PIN);
+  
+  // Check if button changed
+  if (reading != lastButtonState) {
+    lastDebounceTime = millis();
+  }
+  
+  // If stable for 50ms, accept new state
+  if ((millis() - lastDebounceTime) > 50) {
+    if (reading != buttonState) {
+      buttonState = reading;
+      
+      // Return true on falling edge (press)
+      if (buttonState == LOW) {
+        return true;
+      }
+    }
+  }
+  
+  lastButtonState = reading;
+  return false;
+}
+Debounce-tid: Minimum 50ms som specificeret.
+
+5.5.3 Funktionsmodes
+Normal målemode
+Operation:
+
+Kontinuerlig måling og display af modstand
+Automatisk enhedsvalg (µΩ, mΩ, Ω)
+Display opdateres 2-5x per sekund
+
+LCD layout:
+┌────────────────────┐
+│  R: 123.45 mΩ             │
+└────────────────────┘
+RAW ADC mode (kalibreringsmode)
+Aktivering:
+
+Hold kalibreringsknap nede
+Mode skifter øjeblikkeligt (< 100ms)
+
+Operation:
+
+Display viser RAW ADC-værdi (16-bit signed integer)
+Ingen enhedskonvertering eller skalering
+Direkte værdi fra ADS1115
+
+LCD layout i RAW mode:
+┌────────────────────┐
+│  ADC: 12345               │
+└────────────────────┘
+Software implementering:
+cppvoid loop() {
+  // Check if calibration button is held
+  if (digitalRead(CAL_BUTTON_PIN) == LOW) {
+    displayRawADCMode();
+  } else {
+    displayNormalMode();
+  }
+}
+
+void displayRawADCMode() {
+  int16_t rawADC = ads.readADC_Differential_0_1();
+  float voltage = ads.computeVolts(rawADC);
+  
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("RAW ADC MODE");
+  
+  lcd.setCursor(0, 1);
+  lcd.print("ADC: ");
+  lcd.print(rawADC);
+  
+  lcd.setCursor(0, 2);
+  lcd.print("Volt: ");
+  lcd.print(voltage, 4);
+  lcd.print("V");
+  
+  lcd.setCursor(0, 3);
+  lcd.print("[HOLD CAL BUTTON]");
+}
+5.5.4 Kalibreringsprocedure
+Formål:
+Kalibrering eliminerer systematiske fejl:
+
+Offset-fejl: ADC læser ikke-nul ved nul input
+Gain-fejl: ADC's skalering er ikke præcis 1:1
+Systemiske bias: Temperatureffekter, komponent-tolerancer
+
+To-punkt kalibrering:
+Denne metode kræver to kendte referencepunkter:
+Punkt 1: Zero (kort-sluttet terminals)
+DUT = 0Ω (Force+ og Force- kortsluttet sammen)
+V_expected = 0V
+V_measured = V_offset (typisk 0-5mV)
+Punkt 2: Span (præcisionsmodstand)
+DUT = R_ref (f.eks. 10Ω ±0,1%)
+V_expected = I_test × R_ref = 0,1A × 10Ω = 1,000V
+V_measured = V_actual (målt værdi)
+Kalibrerings-koefficienter:
+Fra disse to punkter bestemmes:
+Offset = V_measured_zero
+Gain = (V_expected_span - V_expected_zero) / (V_measured_span - V_measured_zero)
+Korrigeret måling:
+V_corrected = (V_raw - Offset) × Gain
+R_corrected = V_corrected / I_test
+Procedure trin-for-trin:
+Step 1: Zero-kalibrering
+
+Kortslut Force+ og Force- terminals (brug wire eller modstand < 0,001Ω)
+Også kortslut Sense+ og Sense- til samme punkt
+Hold CAL-knap og aflæs RAW ADC-værdi
+Gem værdi som offset_ADC
+Konverter til voltage: offset_voltage = ads.computeVolts(offset_ADC)
+
+Step 2: Span-kalibrering
+
+Forbind præcisionsmodstand (10Ω ±0,1%) som DUT
+Hold CAL-knap og aflæs RAW ADC-værdi
+Gem værdi som span_ADC
+Konverter: span_voltage = ads.computeVolts(span_ADC)
+Beregn gain:
+
+   expected_voltage = 0,100A × 10,0Ω = 1,000V
+   gain = expected_voltage / (span_voltage - offset_voltage)
+Step 3: Gem kalibrering
+Gem offset og gain i EEPROM for permanent lagring:
+cpp#include <EEPROM.h>
+
+struct CalibrationData {
+  float offset_voltage;
+  float gain;
+  uint32_t timestamp;
+  uint16_t checksum;
+};
+
+void saveCalibration(float offset, float gain) {
+  CalibrationData cal;
+  cal.offset_voltage = offset;
+  cal.gain = gain;
+  cal.timestamp = millis();
+  cal.checksum = calculateChecksum(&cal);
+  
+  EEPROM.put(0, cal);
+}
+
+void loadCalibration(float &offset, float &gain) {
+  CalibrationData cal;
+  EEPROM.get(0, cal);
+  
+  // Verify checksum
+  if (validateChecksum(&cal)) {
+    offset = cal.offset_voltage;
+    gain = cal.gain;
+  } else {
+    // Use default values
+    offset = 0.0;
+    gain = 1.0;
+  }
+}
+Step 4: Anvend kalibrering i måling
+cppfloat calibratedRead() {
+  float raw_voltage = readDifferentialVoltage();
+  float corrected_voltage = (raw_voltage - offset_voltage) * gain;
+  float resistance = corrected_voltage / 0.100; // 100mA
+  return resistance;
+}
+5.5.5 Kalibrerings-hyppighed
+Anbefalet kalibreringsinterval:
+AnvendelseIntervalBegrundelseFørste ibrugtagningStraksFactory kalibreringPræcisionsmålingerDagligtEliminér termisk driftNormal brugUgentligtKompensér langstidsdriftOpbevaring > 1 månedVed genstartKomponent-driftEfter batteriskiftStraksForsyning kan påvirke offsetTemperaturændring > 10°CAnbefaletTermiske effekter
+Auto-reminder system:
+Hvis RTC er implementeret, kan system advare ved kalibreringsbehov:
+cppvoid checkCalibrationAge() {
+  uint32_t cal_age = millis() - cal_timestamp;
+  uint32_t one_week = 7UL * 24 * 60 * 60 * 1000; // 7 dage i ms
+  
+  if (cal_age > one_week) {
+    lcd.setCursor(0, 3);
+    lcd.print("[CAL RECOMMENDED]");
+  }
+}
+5.5.6 Mode-skift responsivitet
+Krav:
+Skift mellem normal mode og RAW ADC mode skal ske uden forsinkelse.
+Implementering:
+cppvoid loop() {
+  // Immediate check - no delays before this
+  bool calButtonPressed = (digitalRead(CAL_BUTTON_PIN) == LOW);
+  
+  if (calButtonPressed) {
+    // Switch immediately to RAW mode
+    displayRawADCMode();
+  } else {
+    // Normal operation
+    displayNormalMode();
+  }
+  
+  // No blocking delays in main loop
+  // Use millis() for timing instead
+}
+Timing-krav:
+
+Detection latency: < 50ms (loop execution time)
+Display update: < 100ms (LCD refresh)
+Total user-perceived delay: < 150ms
+
+Dette sikrer at brugeren oplever øjeblikkelig respons når knappen trykkes.
+
+5.6 Ekstra funktionelle krav (valgfri)
+5.6.1 Data-logging (hvis RTC implementeret)
+Funktionalitet:
+
+Gem målinger med tidsstempel
+Export via seriel port til PC
+Statistisk analyse (min, max, average, std dev)
+
+Format:
+Timestamp,Resistance(Ω),Current(mA),Temperature(°C)
+2024-12-09 15:30:01,0.12345,100.0,23.5
+2024-12-09 15:30:06,0.12347,100.0,23.5
+5.6.2 Alarm-funktioner
+Funktionalitet:
+
+Indstillelige grænser (min/max modstand)
+Audio alarm (buzzer) ved out-of-spec
+Visual alarm (LED)
+
+Anvendelse:
+
+Go/No-Go test i produktion
+Automatisk sortering af komponenter
+Kvalitetskontrol af batch-produkter
+
+5.6.3 Temperaturkompensation
+Hvis DS3231 RTC anvendes:
+DS3231 har indbygget temperaturssensor (±3°C nøjagtighed).
+Kompensation:
+Mange resistive komponenter har temperaturkoefficient (TCR). Ved at måle temperature kan software kompensere:
+cppfloat temperatureCompensate(float R_measured, float temp, float TCR) {
+  float temp_delta = temp - 25.0; // Reference: 25°C
+  float R_compensated = R_measured / (1 + TCR * temp_delta);
+  return R_compensated;
+}
+Eksempel:
+For kobber (TCR ≈ 3900 ppm/°C):
+
+Målt modstand: 100mΩ ved 35°C
+Temperature delta: 10°C
+Korrektion: R = 100mΩ / (1 + 0,0039 × 10) = 96,25mΩ
+
+5.6.4 Multi-range operation
+Udvidet område med automatisk range-skift:
+RangeDUTADC GainMax VOpløsning10,001-0,1ΩGAIN_SIXTEEN0,256V0,078µΩ20,01-1ΩGAIN_EIGHT0,512V0,156µΩ30,1-10ΩGAIN_TWO2,048V0,625µΩ41-40ΩGAIN_ONE4,096V1,25µΩ
+Auto-ranging logik:
+cppfloat autoRangingRead() {
+  // Start mid-range
+  ads.setGain(GAIN_TWO);
+  int16_t value = measureWithGain(GAIN_TWO);
+  
+  // Too high? Switch down
+  if (abs(value) > 26000) {  // > 80% of range
+    ads.setGain(GAIN_ONE);
+    value = measureWithGain(GAIN_ONE);
+  }
+  
+  // Too low? Switch up
+  if (abs(value) < 3000) {  // < 10% of range
+    ads.setGain(GAIN_FOUR);
+    value = measureWithGain(GAIN_FOUR);
+    
+    if (abs(value) < 3000) {
+      ads.setGain(GAIN_EIGHT);
+      value = measureWithGain(GAIN_EIGHT);
+    }
+  }
+  
+  return ads.computeVolts(value) / 0.100;
+}
+
+Konklusion på systemarkitektur og funktionelle krav
+Dette Arduino Uno-baserede milliohmmeter kombinerer gennemtænkt hardware-design med intelligent software for at opnå præcise modstandsmålinger i milliohm-området. 
+Gennem anvendelse af 4-leder Kelvin-måling, konstant teststrøm fra LM317, high-precision ADS1115 ADC, og sofistikerede signal-processing teknikker 
+(oversampling, filtering, kalibrering) opnås målinger med nøjagtighed sammenlignelig med kommercielle instrumenter til en brøkdel af prisen.
+Den modulære arkitektur tillader nem udvidelse med features som data-logging, temperaturkompensation og auto-ranging, hvilket gør instrumentet egnet til både hobbyformål, 
+uddannelse og semi-professionel anvendelse inden for elektronik-fejlfinding, komponent-test og kvalitetskontrol.
+
+5.7 Non-Funktionelle Krav (NFR)
+
+### 5.7.1 Performance Requirements
+
+**[NFR-001]** Response Time - Measurement Start
+- **Krav**: Systemet SKAL påbegynde måling < 500 ms efter DUT-forbindelse
+- **Prioritet**: MUST
+- **Rationale**: Bruger forventer umiddelbar respons
+- **Verificering**: Test med oscilloskop + reference DUT
+- **Metrik**: Time from contact-closure to first ADC read
+- **Test-ID**: TC-300
+
+**[NFR-002]** Measurement Settling Time
+- **Krav**: Stabil måling SKAL opnås < 2 sekunder efter forbindelse
+- **Prioritet**: SHOULD
+- **Rationale**: Acceptabel for manual test, kritisk for automated test
+- **Verificering**: Test med multiple DUTs
+- **Metrik**: Time until σ < 0,5% over 1 sekund
+- **Test-ID**: TC-301
+
+**[NFR-003]** Display Update Rate
+- **Krav**: Display SKAL opdateres 2-5 gange per sekund
+- **Prioritet**: SHOULD
+- **Rationale**: Real-time feedback uden flicker
+- **Verificering**: Test med high-speed kamera
+- **Metrik**: FPS measurement
+- **Test-ID**: TC-302
+
+**[NFR-004]** Throughput - Automated Testing
+
+Krav: Systemet BØR kunne gennemføre ≥ 30 målinger per minut via SCPI
+Prioritet: COULD
+Rationale: Production line efficiency
+Verificering: Automated test script
+Metrik: Measurements/minute
+Test-ID: TC-303
+
+5.7.2 Reliability Requirements
+[NFR-010] MTBF - Mean Time Between Failures
+
+Krav: MTBF SKAL være > 10,000 timer ved normal brug
+Prioritet: SHOULD
+Rationale: Minimerer downtime i professionel anvendelse
+Verificering: Calculation + accelerated life test
+Metrik: Predicted MTBF baseret på MIL-HDBK-217F
+Assumptions: 8 timer daglig drift, 25°C ambient, controlled environment
+Test-ID: AN-100
+
+[NFR-011] Battery Life - Continuous Operation
+
+Krav: 9V alkaline batteri SKAL holde > 8 timer kontinuerlig drift
+Prioritet: MUST
+Rationale: Fuld arbejdsdag uden batteriskift
+Verificering: Endurance test
+Metrik: Runtime til < 7V supply
+Test-ID: TC-310
+
+[NFR-012] Calibration Stability
+
+Krav: Kalibrering SKAL være stabil ±0,5% over 7 dage ved 25°C
+Prioritet: SHOULD
+Rationale: Ugentlig kalibrering acceptabel
+Verificering: Long-term drift test
+Metrik: Δ resistance over tid
+Test-ID: TC-311
+
+[NFR-013] Component Lifetime - LM317
+
+Krav: LM317 SKAL operere > 20,000 timer uden degradation
+Prioritet: SHOULD
+Rationale: Thermal stress management
+Verificering: Thermal analysis + datasheet review
+Metrik: Junction temp < 80°C ved 25°C ambient
+Test-ID: AN-101, TC-312
+
+5.7.3 Environmental Requirements
+[NFR-020] Operating Temperature Range
+
+Krav: Systemet SKAL operere korrekt 0°C til 40°C
+Prioritet: MUST
+Rationale: Typical lab/workshop environment
+Verificering: Temperature chamber test
+Metrik: Accuracy within spec at temperature extremes
+Test-ID: TC-320, TC-321
+
+[NFR-021] Extended Temperature Range
+
+Krav: Systemet BØR operere -10°C til 50°C med reduceret nøjagtighed
+Prioritet: COULD
+Rationale: Outdoor/automotive anvendelse
+Verificering: Temperature chamber test
+Metrik: Accuracy ±3% at extremes
+Test-ID: TC-322
+
+[NFR-022] Storage Temperature Range
+
+Krav: Systemet SKAL kunne opbevares -20°C til 60°C uden skade
+Prioritet: MUST
+Rationale: Shipping og warehouse storage
+Verificering: Thermal cycle test
+Metrik: Full functionality after storage
+Test-ID: TC-323
+
+[NFR-023] Humidity - Operating
+
+Krav: Systemet SKAL operere ved 10-90% RH, non-condensing
+Prioritet: MUST
+Rationale: Typical indoor environment
+Verificering: Humidity chamber test
+Metrik: Leakage current < 1µA ved 90% RH
+Test-ID: TC-324
+
+[NFR-024] Humidity - Storage
+
+Krav: Systemet BØR kunne opbevares ved 5-95% RH
+Prioritet: SHOULD
+Rationale: Warehouse conditions
+Verificering: Humidity exposure test
+Metrik: No corrosion after 30 days
+Test-ID: TC-325
+
+[NFR-025] Altitude
+
+Krav: Systemet SKAL operere op til 2000m højde
+Prioritet: SHOULD
+Rationale: Mountain locations, high-altitude cities
+Verificering: Calculation (reduced air pressure effect minimal)
+Test-ID: AN-102
+
+5.7.4 Mechanical Requirements
+[NFR-030] Drop Test
+
+Krav: Systemet BØR overleve 0,5m fald på hårdt underlag
+Prioritet: SHOULD
+Rationale: Typisk bordh højde, occasional mishandling
+Verificering: Drop test (6 orientations)
+Metrik: Full functionality + no cracked components
+Test-ID: TC-330
+
+[NFR-031] Vibration Resistance
+
+Krav: Systemet BØR operere under vibration < 2G, 10-150Hz
+Prioritet: COULD
+Rationale: Transportation, automotive installation
+Verificering: Vibration table test
+Metrik: No intermittent faults during vibration
+Test-ID: TC-331
+
+[NFR-032] Connector Durability - Banana Plugs
+
+Krav: Bananstik SKAL overleve > 1000 insertions
+Prioritet: MUST
+Rationale: Heavy daily use
+Verificering: Mechanical cycling test
+Metrik: Contact resistance < 10mΩ efter 1000 cycles
+Test-ID: TC-332
+
+[NFR-033] Enclosure - IP Rating
+
+Krav: Hvis enclosure implementeres, BØR den være IP40 minimum
+Prioritet: COULD
+Rationale: Protection mod finger contact og støv
+Verificering: IP test procedure
+Metrik: IP40 certification
+Test-ID: TC-333
+
+5.7.5 EMC Requirements
+[NFR-040] Radiated Emissions - RE
+
+Krav: Radiated emissions SKAL være < EN55022 Class B limits
+Prioritet: MUST
+Rationale: CE marking requirement (hvis commercial product)
+Verificering: EMC chamber test
+Metrik:
+
+30-230 MHz: < 40 dBµV/m @ 10m
+230-1000 MHz: < 47 dBµV/m @ 10m
+
+
+Test-ID: TC-340
+
+[NFR-041] Conducted Emissions - CE
+
+Krav: Conducted emissions BØR være < EN55022 Class B limits
+Prioritet: SHOULD (hvis mains powered i fremtiden)
+Rationale: Forbereder for AC adapter option
+Verificering: LISN measurement
+Metrik: 150kHz-30MHz < limits
+Test-ID: TC-341
+
+[NFR-042] ESD Immunity - Contact Discharge
+
+Krav: Systemet SKAL overleve ±4kV contact discharge (IEC 61000-4-2 Level 2)
+Prioritet: MUST
+Rationale: Normal user handling
+Verificering: ESD generator test på enclosure/connectors
+Metrik:
+
+Criteria A: Normal operation during/after test
+Max glitch < 10ms display freeze
+
+
+Test-ID: TC-342
+
+[NFR-043] ESD Immunity - Air Discharge
+
+Krav: Systemet BØR overleve ±8kV air discharge (IEC 61000-4-2 Level 3)
+Prioritet: SHOULD
+Rationale: Indirect ESD fra nearby objects
+Verificering: ESD generator test @ 10cm
+Metrik: No reset, measurement resume < 1 sekund
+Test-ID: TC-343
+
+[NFR-044] Radiated Immunity - RF
+
+Krav: Systemet BØR operere korrekt ved 3V/m RF field, 80MHz-1GHz
+Prioritet: SHOULD
+Rationale: Walkie-talkie, mobile phone proximity
+Verificering: RF chamber test
+Metrik: Measurement accuracy degradation < 5%
+Test-ID: TC-344
+
+[NFR-045] Burst Immunity
+
+Krav: Systemet BØR overleve ±1kV burst (IEC 61000-4-4 Level 2)
+Prioritet: COULD (hvis mains powered)
+Rationale: Switching transients på power line
+Verificering: Burst generator test
+Test-ID: TC-345
+
+5.7.6 Usability Requirements
+[NFR-050] Learning Curve
+
+Krav: Nybegynder SKAL kunne udføre basic måling < 5 minutter efter first power-on
+Prioritet: MUST
+Rationale: Self-explanatory operation
+Verificering: User test med 10 test-personer (ingen instruktion)
+Metrik: 80% success rate < 5 minutter
+Test-ID: UT-001
+
+[NFR-051] Documentation Completeness
+
+Krav: Brugermanual SKAL dække 100% af features
+Prioritet: MUST
+Rationale: Self-contained documentation
+Verificering: Documentation review
+Metrik: Checklist af alle FR/NFR covered
+Test-ID: DR-100
+
+[NFR-052] Display Readability
+
+Krav: Display SKAL være læsbar på 1 meter afstand i normal belysning
+Prioritet: SHOULD
+Rationale: Praktisk working distance
+Verificering: User test
+Metrik: 90% kan læse korrekt på 1m
+Test-ID: UT-002
+
+[NFR-053] Error Messages - Clarity
+
+Krav: Alle fejlmeddelelser SKAL være selvforklarende
+Prioritet: SHOULD
+Rationale: Reduces support calls
+Verificering: User test
+Metrik: 80% forstår error uden manual
+Test-ID: UT-003
+
+5.7.7 Maintainability Requirements
+[NFR-060] Battery Replacement Time
+
+Krav: Batteriskift SKAL kunne udføres < 30 sekunder
+Prioritet: MUST
+Rationale: Minimal downtime
+Verificering: Time measurement test
+Metrik: Average time over 10 replacements
+Test-ID: MT-001
+
+[NFR-061] Firmware Update Time
+
+Krav: Firmware upload SKAL kunne udføres < 2 minutter
+Prioritet: SHOULD
+Rationale: Quick bug-fixes
+Verificering: Time measurement
+Metrik: Arduino IDE upload time
+Test-ID: MT-002
+
+[NFR-062] Calibration Complexity
+
+Krav: Two-point kalibrering SKAL kunne udføres af trained user < 10 minutter
+Prioritet: MUST
+Rationale: Regular maintenance feasibility
+Verificering: User test
+Metrik: Median time af 5 users
+Test-ID: MT-003
+
+[NFR-063] Troubleshooting Documentation
+
+Krav: Troubleshooting guide SKAL dække top 10 common faults
+Prioritet: SHOULD
+Rationale: User self-service
+Verificering: Documentation review
+Metrik: Completeness checklist
+Test-ID: DR-101
+
+[NFR-064] Spare Parts Availability
+
+Krav: Alle kritiske komponenter BØR være tilgængelige fra ≥2 leverandører
+Prioritet: SHOULD
+Rationale: Long-term supportability
+Verificering: BOM review
+Metrik: Dual-source percentage
+Test-ID: PR-001
+
+5.7.8 Portability Requirements
+[NFR-070] Weight
+
+Krav: Total vægt SKAL være < 500g (uden enclosure)
+Prioritet: SHOULD
+Rationale: Handheld / portable use
+Verificering: Weighing
+Metrik: Scale measurement
+Test-ID: PT-001
+
+[NFR-071] Dimensions - PCB
+
+Krav: PCB SKAL være max 150x70mm
+Prioritet: MUST
+Rationale: Standard enclosure compatibility
+Verificering: Mechanical measurement
+Metrik: Caliper measurement
+Test-ID: PT-002
+
+[NFR-072] Power Source - Portability
+
+Krav: Systemet SKAL kunne operere på standard 9V batteri
+Prioritet: MUST
+Rationale: No mains requirement
+Verificering: Functional test
+Metrik: Full functionality på batteri
+Test-ID: PT-003
+
+5.7.9 Security Requirements
+[NFR-080] Calibration Data Protection
+
+Krav: Kalibreringsdata i EEPROM BØR have checksum-beskyttelse
+Prioritet: SHOULD
+Rationale: Prevents corruption
+Verificering: Code review + corruption test
+Metrik: Checksum validation success rate
+Test-ID: SC-001
+
+[NFR-081] SCPI Access Control
+
+Krav: SCPI interface KAN have optional password-protection
+Prioritet: WON'T HAVE (v1.0)
+Rationale: Ikke nødvendigt for single-user instrument
+Verificering: N/A
+Test-ID: N/A
+
+[NFR-082] Firmware Authenticity
+
+Krav: Firmware KAN have digital signatur i fremtidige versioner
+Prioritet: WON'T HAVE (v1.0)
+Rationale: Arduino bootloader understøtter ikke signed code
+Verificering: N/A
+Test-ID: N/A
+
+5.7.10 Compliance Requirements
+[NFR-090] CE Marking Preparedness
+
+Krav: Design SKAL følge EMC guidelines for eventual CE marking
+Prioritet: SHOULD
+Rationale: Commercial readiness
+Verificering: Design review against EN55022, IEC 61000-4-X
+Metrik: Compliance checklist
+Test-ID: CR-001
+
+[NFR-091] RoHS Compliance
+
+Krav: Alle komponenter BØR være RoHS-compliant
+Prioritet: SHOULD
+Rationale: Environmental responsibility + EU market access
+Verificering: BOM review + supplier certificates
+Metrik: 100% RoHS parts
+Test-ID: CR-002
+
+[NFR-092] WEEE Compliance
+
+Krav: Design BØR facilitere easy disassembly for recycling
+Prioritet: COULD
+Rationale: End-of-life handling
+Verificering: Disassembly analysis
+Metrik: Disassembly time < 10 minutter
+Test-ID: CR-003
+
+[NFR-093] Open Source Licensing
+
+Krav: Al software SKAL være open source (MIT eller GPLv3 license)
+Prioritet: MUST
+Rationale: Educational use + community contribution
+Verificering: License file review
+Metrik: License headers i alle source files
+Test-ID: CR-004
+
+6. Kalibreringsvejledning
+6.1 Forberedelse
+
+
+Nødvendigt udstyr:
+
+48 E12 reference-modstande, 0,1% tolerance (0,010 Ω til 82 Ω)
+Præcisionsmultimeter (fx Fluke 87V) til strømverifikation
+Logbog til notering af ADC-værdier
+
+
+
+Strømverifikation:
+
+Tilslut 1,00 Ω 0,1% modstand mellem STRØM HI/LO
+Mål spænding over modstand med multimeter
+Beregn: I_real = V_shunt / 1,00 Ω (skal være 98–102 mA)
+
+
+
+6.2 Softwarekalibrering
+
+Upload “factory firmware” (ADC_table = fabrikværdier)
+Tilslut reference-modstand, aktiver RAW-mode, notér RAW ADC-værdi
+Gentag for alle referencepunkter
+Opdater adcTable og refOhms arrays i firmware med de målte værdier
+Re-kompiler og upload firmware
+
+6.3 Fejlkilder
+
+Forkert reference-modstand (tjek farvekoder 2x)
+Ledningsmodstand (brug 4-leder korrekt)
+LM317 drift (mål I_OUT før hver måling)
+Termisk afdrift (vent 5 min mellem målinger)
+
+7. Verifikation og test
+7.1 Funktionsverifikation
+
+Test 1: 4-leder funktionalitet (kortslut alle 4 bananer, mål 10x)
+
+Krav: “UNDER RANGE” (<0,001 Ω), σ < 0,1 mΩ
+
+
+Test 2: Oversampling verifikation (0,100 Ω ref, mål 1 min, 600 samples)
+
+Krav: Drift <0,02 mΩ, σ <0,01 mΩ
+
+
+Test 3: Kalibreringsknap (D2→GND, gentag 10x)
+
+Krav: RAW ADC → Ω mode uden glitch
+
+
+
+7.2 Nøjagtighedsverifikation
+
+Test 4: Linearitets-sweep (E12 række)
+
+Krav: Max fejl < ±2% (0,010 Ω), < ±1,5% (0,047 Ω), < ±1% (1,00 Ω), < ±1,5% (10,0 Ω)
+
+
+
+7.3 EMC- og miljøtest
+
+Test 5: Emissionstest (10 cm nærfeltsprobe)
+
+Krav: <40 dBµV @ 16 MHz, <30 dBµV @ I²C (400 kHz)
+
+
+Test 6: Immunity (3V ESD air discharge)
+
+Krav: Ingen reset, måling stabil <10 ms glitch
+
+
+
+
+8. EMC og PCB-layout
+8.1 Layoutkrav
+
+PCB skal være double-layer FR4 (50x70 mm, 1.6 mm tykkelse, 35 µm Cu)
+Toplag: Signal/Sense, SMD/TH-komponenter, Sense HI/LO traces max. 5 cm, 0.2 mm bredde
+Bundlag: Power/Strøm, LM317 og strømtraces min. 0.8 mm bredde
+Solidt GND-plane på bundlaget, GND-vias hver 5 mm (stitching)
+Analog og digital del skal adskilles med mindst 2 mm gap
+I²C-traces: 0.3 mm bredde, <10 cm til chips, pullups placeret nær ADS1115
+Strømtraces og sense-traces skal have min. 3 mm separation
+Crystal oscillator: 4x GND-vias i hjørner for EMC
+
+8.2 Shielding og filtrering
+
+I²C-bus: SDA/SCL med 4.7 kΩ pullups, 100 nF afkobling til GND
+Sense-linjer: Ferrit bead mellem DUT og ADS1115, guard ring GND omkring sense-traces
+Power: 9V IN med 100 nF afkobling, PTC-sikring og diode til LM317
+
+
+9. Softwarearkitektur
+9.1 Doxygen-dokumentation
+
+Firmware skal være grundigt kommenteret med DOxygen, inkl. alle funktioner, datastrukturer og SCPI-integration
+Doxyfile skal generere HTML og LaTeX-dokumentation
+Alle moduler, funktioner og datastrukturer skal have @brief, @param, @return og @details
+
+9.2 Softwaremoduler
+
+HW_INIT: Initialisering af I²C, ADS1115, LCD, knap
+MEAS_CORE: Målekerne med oversampling og averaging
+CALIBRATION: Kalibreringsmode og tabeludfyldning
+TABLE_LOOKUP: Interpolation af modstandsværdi
+DISPLAY_UI: LCD auto-ranging og statusmeldinger
+SCPI_HANDLER: Serial input, kommando-fortolkning og dataeksport
+LOGGING: Måledata-buffer og eksportfunktioner
+
+
+10. Produktionskrav
+10.1 Gerber-filer og fabrikationskrav
+
+PCB-produktion hos JLCPCB/PCBWay, double-layer FR4, HASL finish
+Min. trace 0.2 mm, clearance 0.25 mm, 20 vias stitching (GND-plane)
+Silkscreen: STRØM/SENSE labels, tydelig markering af alle forbindelser
+
+10.2 Montage og test
+
+SMD-komponenter monteres først (R3, R4, C1, C2)
+THT-komponenter: Arduino shield, LM317, headers, bananstik
+Visuel inspektion for kolde lodninger og brodannelser
+Continuity test: Sense HI/LO <0.1 Ω
+Power-on test: 9V → LM317 varm, LCD lyser
+
+11. Acceptance test og godkendelse
+
+Alle funktions-, nøjagtigheds-, EMC- og integrationstests skal være bestået
+Firmware skal overholde RAM/Flash-begrænsninger og være fuldt dokumenteret
+Systemet skal kunne bygges, kalibreres og anvendes af enhver med adgang til dokumentationen
+Godkendelse til produktion kræver underskrift af test witness og professor i ingeniørvidenskab
+
+
+12. Bilag og eksempler
+A. Kalibreringsark (til udskrivning og udfyldning)
+
+
+IdxR_ref [Ω]	V_teoret [mV]	RAW_ADC		ADC_table[n]		Initialer		Dato
+
+Brug:
+
+Tilslut reference-modstand, aktiver RAW-mode, notér RAW ADC-værdi.
+Gentag for alle punkter, opdater firmware med måledata.
+
+
+B. Eksempler på SCPI-kommandoer og dataeksport
+SCPI-kommandoer:
+
+*IDN? → Returnerer instrumentets identifikation.
+MEAS? → Returnerer aktuel målt modstandsværdi.
+EXPORT:CSV? → Returnerer alle loggede måledata i CSV-format.
+EXPORT:XML? → Returnerer alle loggede måledata i XML-format.
+
+CSV-eksempel:
+timestamp,resistance
+2025-12-09T12:00:00,0.01234
+2025-12-09T12:01:00,0.01236
+
+XML-eksempel:
+
+<measurements>
+  <measurement>
+    <timestamp>2025-12-09T12:00:00</timestamp>
+    <resistance>0.01234</resistance>
+  </measurement>
+  <measurement>
+    <timestamp>2025-12-09T12:01:00</timestamp>
+    <resistance>0.01236</resistance>
+  </measurement>
+</measurements>
+
+C. Testprotokoller og resultater
+
+Test ID		Beskrivelse			Forventet resultat
+T1		Opstart, LCD-init		LCD viser “Milliohmmeter v5.1” inden for 1 sekund
+T2		Måling af 1,00 Ω reference	Vist værdi: 0,99–1,01 Ω efter kalibrering
+T3		Kalibreringsmode		Display viser “RAW ADC: <værdi>” ved tryk på knap
+T4		SCPI *IDN?			Returnerer korrekt identifikation
+T5		SCPI MEAS?			Returnerer målt værdi med 6 decimaler
+T6		SCPI EXPORT:CSV?		Returnerer alle loggede måledata i korrekt CSV-format
+T7		SCPI EXPORT:XML?		Returnerer alle loggede måledata i korrekt XML-format
+T8		EMC emission<40 dBµV @ 16 MHz   (EN55022 Class B)
+T9		ESD-immunity			Ingen reset, måling stabil <10 ms glitch
+
+D. Gerber-filer og PCB-layout
+
+Gerber-filer skal inkludere alle lag: top, bund, silkscreen, soldermask, drill, edge cuts.
+Layout skal følge alle EMC- og designkrav beskrevet i hovedspecifikationen.
+Silkscreen skal tydeligt markere STRØM/SENSE, komponentplacering og pinout.
+
+
+E. Billeder af færdigt instrument
+
+Billeder af færdigmonteret PCB, frontpanel med LCD og knap, tilslutning af bananstik.
+Eksempel på måling og kalibrering i praksis.
+
+
+Med denne bilagssektion er kravspecifikationen komplet og operationel.

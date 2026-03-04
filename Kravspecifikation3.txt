@@ -1,0 +1,881 @@
+Kravspecifikation (SRS) – Professionelt Arduino Milliohmmeter v7
+Forfatter: Jan Engelbrecht Pedersen
+Dato: 9. december 2025
+Version: 5.1
+Firmware: milliohmmeter7.ino
+
+Indholdsfortegnelse
+
+Indledning
+1.1 Formål
+1.2 Omfang
+1.3 Definitioner og forkortelser
+1.4 Referencer
+Systemoversigt
+2.1 Hvad er et milliohmmeter?
+2.2 Måleprincip
+2.3 Typiske anvendelser
+Materialeliste (BOM)
+Systemarkitektur
+4.1 Elektrisk diagram og stikskema
+4.2 Strømforsyning og termiske forhold
+4.3   Use Cases og Brugsscenarier
+Funktionelle krav
+5.1 Måleområde og opløsning
+5.2 Teststrøm
+5.3 4-leder Kelvin-måling
+5.4 ADC-systemkrav
+5.5 Kalibreringsknap og -funktion
+5.7  Non-Funktionelle Krav (NFR)
+Kalibreringsvejledning
+6.1 Forberedelse
+6.2 Softwarekalibrering
+6.3 Fejlkilder
+Verifikation og test
+7.1 Funktionsverifikation
+7.2 Nøjagtighedsverifikation
+7.3 EMC- og miljøtest
+EMC og PCB-layout
+8.1 Layoutkrav
+8.2 Shielding og filtrering
+Softwarearkitektur
+9.1 Doxygen-dokumentation
+9.2 Softwaremoduler
+Produktionskrav
+10.1 Gerber-filer og fabrikationskrav
+10.2 Montage og test
+Acceptance test og godkendelse
+Bilag og eksempler
+
+
+
+1. Indledning
+1.1 Formål
+Dette dokument beskriver kravspecifikationen og software requirements specification (SRS) for et professionelt Arduino-baseret milliohmmeter målrettet hobbysegmentet, 
+men med funktionalitet og nøjagtighed på niveau med kommercielle instrumenter. Formålet er at gøre det muligt for enhver med grundlæggende elektronikforståelse at bygge, 
+kalibrere og anvende instrumentet samt integrere det i laboratoriemiljøer og automatiserede testsystemer.:
+- ADS1115 16‑bit differential ADC
+- Dynamisk PGA‑styring (4×, 8×, 16×)
+- 4‑leder Kelvin‑måleteknik
+- Konstantstrøm på 100 mA genereret af LM317
+- Kalibreringstabeller gemt i PROGMEM
+- SCPI‑lignende seriel protokol
+- Valgfri RTC‑understøttelse
+- Intern datalogning i RAM (cirkulær buffer)
+- LCD‑display via I²C
+Formålet er at give en komplet, reproducerbar og teknisk præcis beskrivelse af hardware, software, kalibrering og test, så enhver med grundlæggende elektronikforståelse kan bygge, kalibrere og anvende instrumentet.
+Instrumentet er ikke et professionelt milliohmmeter, men et hobby‑ og serviceinstrument, hvilket afspejles i firmware v7’s egne begrænsninger:
+- Ingen AC‑måling
+- Ingen polaritetsvending
+- Ingen temperaturkompensation
+- Ingen zero‑adjustment
+- Ingen NVRAM‑lagring af kalibrering
+- Opløsning og nøjagtighed er begrænset af ADS1115 og LM317‑drift
+- Måleområde: 1 mΩ – 10 Ω 
+
+1.2 Omfang
+Kravspecifikationen dækker:
+- Hardwarearkitektur
+- Strømforsyning og termiske forhold
+- Kelvin‑målesystem
+- ADC‑konfiguration og dynamisk PGA‑styring
+- Firmwarefunktioner (måling, SCPI, datalogning, display)
+- Kalibreringsprocedure og tabeller
+- Test og verifikation
+- EMC‑hensyn
+- Produktionskrav
+
+1.3 Definitioner og forkortelser
+(Uændret 1:1, da firmware ikke ændrer dette afsnit)
+DUT: Device Under Test
+SRS: Software Requirements Specification
+ADC: Analog‑to‑Digital Converter
+EMC: Electromagnetic Compatibility
+BOM: Bill of Materials
+Kelvin‑måling: 4‑leder målemetode for lav ohm
+PCB: Printed Circuit Board
+RTC: Real Time Clock
+CSV: Comma Separated Values
+XML: Extensible Markup Language
+SCPI: Standard Commands for Programmable Instruments
+
+1.4 Referencer
+(Uændret 1:1)
+IEEE 830‑1998: Software Requirements Specification
+Arduino Uno R3, ATmega328P datasheet
+ADS1115 datasheet
+DS1307 RTC datasheet
+EN55022 Class B (EMC‑standard)
+2. Systemoversigt
+2.1 Hvad er et milliohmmeter?
+Et milliohmmeter er et specialiseret præcisionsmåleinstrument designet til at måle meget lave elektriske modstande med høj opløsning og nøjagtighed. Instrumentet opererer typisk i måleområdet fra 0,002 ohm (2 milliohm) til 5 ohm, hvilket er væsentligt under hvad et almindeligt multimeter kan måle pålideligt.
+Traditionelle digitale multimetre er generelt begrænset til målinger over 1-10 ohm med rimelig præcision, da deres egen indre modstand, testledningers modstand og kontaktmodstande introducerer betydelige fejl ved lavere værdier. Et milliohmmeter er specifikt udviklet til at eliminere disse fejlkilder gennem anvendelse af 4-leder Kelvin-måleteknik og kontrolleret højere teststrøm.
+Tekniske karakteristika 
+Instrumentet har et måleområde fra 1 milliohm til 10 ohm. Det anvender en konstantstrøm på 100 mA og måleteknikken er 4‑leder Kelvin. ADC’en er en ADS1115 med 16 bit opløsning i differential mode. Forstærkningen (PGA) skifter dynamisk mellem 4×, 8× og 16× afhængigt af målespændingen. Nøjagtigheden er cirka 1 procent efter kalibrering. Kalibreringsdata er lagret i PROGMEM. Displayet er et 16×2 LCD via I²C. Kommunikation foregår via en SCPI‑lignende seriel protokol. Datalogning foregår i en intern cirkulær RAM‑buffer.
+Instrumentets betydning
+Evnen til at måle milliohm-modstande er kritisk i moderne elektronik og elektrisk installation. Mange fejl og problemer manifesterer sig som små ændringer i modstand, som er usynlige for konventionelle måleinstrumenter. Et milliohmmeter gør det muligt at:
+
+Identificere defekte forbindelser før de forårsager totalt svigt
+Verificere kvaliteten af lodninger, svejsninger og skrueforbindelser
+Diagnosticere interne fejl i komponenter som transformere og motorer
+Kvalitetssikre produktionen af lavmodstandskomponenter
+
+2.2 Måleprincip
+Grundlæggende teori
+Modstand beregnes ud fra Ohms lov som spænding divideret med strøm.
+Konstant strømkilde
+Teststrømmen på 100 mA genereres af et konstant strømkredsløb baseret på en LM317 spændingsregulator konfigureret som strømregulator. Dette opnås ved at udnytte regulatorens interne referencestrøm:
+I_test = V_ref / R_set
+hvor V_ref = 1,25V (LM317's reference) og R_set er en præcisionsmodstand på 12,5 Ω (±1% eller bedre), hvilket giver en teststrøm på præcis 100 mA.
+Fordele ved 100 mA teststrøm
+Valget af 100 mA teststrøm repræsenterer en optimal balance mellem flere faktorer:
+Tilstrækkelig høj til præcision: Ved lave modstande genererer 100 mA et målbart spændingsfald. For en modstand på 0,1 Ω giver 100 mA et spændingsfald på 10 mV, som er godt detekterbart af en præcisions-ADC.
+Lav nok til sikkerhed: 100 mA er tilstrækkeligt lav til ikke at beskadige de fleste komponenter eller forårsage betydelig opvarmning under målingen. Effekten i en 1 Ω modstand er kun P = I²R = (0,1)² × 1 = 0,01 W = 10 mW.
+Praktisk implementering: 100 mA kan nemt leveres af en standard 9V batteri i flere timer og kan håndteres af almindelige Arduino-kompatible komponenter.
+Beregningsvenlig: Værdien 100 mA = 0,1 A forenkler matematikken. For en målt spænding V målt i millivolt bliver modstanden direkte: R (mΩ) = V (mV) / 0,1 = 10 × V (mV).
+
+Firmware v7 anvender udelukkende DC‑måling. Der er ingen AC‑måling, ingen polaritetsvending, ingen EMF‑kompensation, ingen auto‑zero og ingen temperaturkompensation. Termospændinger kan derfor påvirke målinger i mikrovolt‑området. Måleresultaterne er mest præcise ved samme temperatur som kalibreringen. Lavfrekvent støj reduceres gennem oversampling.
+4‑leder Kelvin‑måling
+Strøm føres gennem force‑ledningerne, mens spændingen måles direkte på DUT via sense‑ledningerne.
+ADC og signalbehandling i firmware v7
+Firmware v7 anvender ADS1115 i differential mode mellem A0 og A1. PGA‑forstærkningen vælges dynamisk ud fra den rå ADC‑værdi. Datatempoet er 860 samples per sekund. Der oversamples 65 målinger i 4 blokke. Den endelige modstand beregnes ikke via Ohms lov, men via lineær interpolation i kalibreringstabeller lagret i PROGMEM.
+Dynamisk PGA‑styring
+Firmware v7 vælger automatisk mellem tre forstærkningsniveauer. Ved lave ADC‑værdier anvendes 16× forstærkning. Ved mellemstore værdier anvendes 8×. Ved høje værdier anvendes 4×. Dette sikrer optimal udnyttelse af ADC’ens opløsning.
+Modstandsberegning
+Firmware v7 beregner ikke modstand ud fra spænding og strøm. I stedet anvendes den rå ADC‑værdi som indeks i en kalibreringstabel. Hvis værdien ligger mellem to punkter, udføres lineær interpolation. Dette giver bedre linearitet end teoretiske beregninger.
+Målenøjagtighed og fejlkilder
+ADS1115 er ikke temperaturkompenseret. Kalibreringstabellerne gælder kun ved samme temperatur som kalibreringen. LM317’s temperaturdrift påvirker teststrømmen. Der er ingen auto‑zero, så offsetfejl kan forekomme. ESR‑målinger er DC‑tilnærmelser, da instrumentet ikke måler ved AC‑frekvenser.
+
+2.3 Typiske anvendelser
+Alle beskrivelser af kabeltest, shunt‑modstande, transformere, motorviklinger, batteridiagnostik, kontaktmodstand og øvrige anvendelser er fortsat gyldige.
+
+
+3. Materialeliste (BOM)
+Firmware v7 anvender Arduino Uno/Nano, ADS1115, LM317‑baseret konstantstrøm og 4‑leder Kelvin‑måling. 
+
+Materialelisten er som følger, gengivet uden tabeller:
+- Arduino Uno R3 (1 stk.)
+ATmega328P‑baseret 5V platform. Anvendes som hovedcontroller.
+- ADS1115 (1 stk.)
+16‑bit I²C ADC med differentialmåling. Bruges til præcis måling af spændingsfaldet over DUT.
+- LM317T (1 stk.)
+Lineær regulator i TO‑220‑pakke, konfigureret som konstantstrømsgenerator til 100 mA.
+- 16×2 LCD med I²C interface (1 stk.)
+HD44780‑kompatibelt display med PCF8574 I²C‑adapter. Bruges til visning af måleresultater.
+- Præcisionsmodstand 12,5 ohm, 0,5 %, 0,25 W (1 stk.)
+Bruges som R_set i LM317‑strømgeneratoren for at opnå 100 mA.
+- 220 ohm modstand, 5 %, 0,25 W (1 stk.)
+Bruges til LM317 stabilitet.
+- 4,7 kΩ modstande (2 stk.)
+Bruges som I²C pull‑ups.
+- 100 nF keramiske kondensatorer (2 stk.)
+Bruges til afkobling og LM317 stabilitet.
+- Tactile switch 16×6 mm (1 stk.)
+Bruges som kalibreringsknap (forbundet til GPIO2 → GND).
+- Bananstik 4 stk. (rød, sort, gul, grøn)
+Bruges til force‑ og sense‑forbindelserne i Kelvin‑målesystemet.
+- PCB, dobbeltlaget, FR4, ca. 150×70 mm, 1,6 mm tykkelse, 35 µm kobber (1 stk.)
+Bruges til professionelt layout med EMC‑hensyn.
+- 9V batteri (1 stk.)
+Anvendes som primær strømforsyning. Firmware v7 er optimeret til lavt støjniveau, så lineær forsyning er vigtig.
+- Heatsink til LM317 (1 stk.)
+Bruges til at reducere temperaturdrift i konstantstrømsgeneratoren.
+- PTC‑sikring 1500 mA hold, 1 A trip (1 stk.)
+Bruges til overstrømsbeskyttelse.
+- 1N4007 diode (1 stk.)
+Bruges til polaritetsbeskyttelse.
+- DS1307 RTC‑modul (valgfrit, 1 stk.)
+Firmware v7 understøtter automatisk tidsstempling, hvis RTC’en er til stede. Hvis ikke, anvendes intern uptime‑tæller.
+Den samlede pris er fortsat cirka 355 DKK afhængigt af leverandør.
+
+
+4. Systemarkitektur
+Dette afsnit beskriver den elektriske og funktionelle arkitektur for milliohmmeteret. 
+
+4.1 Elektrisk diagram og stikskema
+Systemet er opdelt i fire hovedblokke:
+- Strømforsyning og konstantstrømsgenerator
+- Kelvin‑målesystem
+- Digital signalbehandling
+- Brugerinterface
+4.1.1 Overordnet systemarkitektur
+Strømforsyningen består af et 9V batteri, polaritetsbeskyttelse via diode, PTC‑sikring og en 5V regulator, der forsyner Arduino, ADS1115, LCD og RTC.
+Fra samme batteri forsyner LM317‑kredsløbet konstantstrømsgeneratoren, som leverer 100 mA til DUT via force‑ledningerne.
+Kelvin‑målesystemet består af to force‑ledninger, der fører strømmen, og to sense‑ledninger, der måler spændingsfaldet direkte på DUT. Sense‑ledningerne går til ADS1115 i differential mode.
+Digital signalbehandling udføres af ADS1115 og Arduino. ADS1115 leverer rå ADC‑data, som Arduino oversampler, interpolerer og konverterer til modstandsværdier via PROGMEM‑tabeller.
+Brugerinterfacet består af LCD‑displayet, kalibreringsknappen, valgfri RTC og SCPI‑seriel kommunikation.
+
+4.1.2 Strømforsyningssektion
+Strømforsyningen er opdelt i to subsystemer:
+- Digital forsyning til Arduino, ADC, LCD og RTC
+- Konstantstrømsgenerator til DUT
+Primær digital forsyning
+Et 9V batteri føres gennem en 1N4007 diode for polaritetsbeskyttelse og derefter gennem en PTC‑sikring. En lineær 5V regulator (7805 eller AMS1117‑5.0) leverer 5V til alle digitale komponenter. Afkoblingskondensatorer placeres ved regulatorens indgang og udgang samt ved hver IC.
+
+Konstantstrømkilde
+LM317 konfigureres som konstantstrømsgenerator med en præcisionsmodstand på 12,5 ohm. Dette giver en teststrøm på 100 mA.
+LM317 skal monteres på en køleprofil for at minimere temperaturdrift, da firmware v7 ikke har temperaturkompensation.
+Effekten i LM317 er størst ved lave DUT‑modstande, og termisk stabilitet er vigtig for nøjagtighed.
+
+4.1.3 Kelvin‑målesystem
+Kelvin‑målesystemet består af to force‑ledninger og to sense‑ledninger.
+Force‑ledningerne fører 100 mA gennem DUT. Deres modstand er ikke kritisk, da strømmen er konstant.
+Sense‑ledningerne fører praktisk talt ingen strøm og måler spændingsfaldet direkte på DUT. De går til ADS1115’s A0 og A1 indgange i differential mode.
+Firmware v7 anvender ADS1115’s differentialmåling direkte uden yderligere forstærkning, da PGA‑forstærkningen håndteres digitalt.
+PCB‑layoutet skal sikre:
+- Kortest mulig vej fra sense‑terminaler til ADS1115
+- Minimal krydstale
+- Ground‑plane under sense‑traces
+- 90‑graders krydsning mellem sense‑ og force‑traces
+Dette er uændret fra originalen.
+
+4.1.4 I²C‑bus
+I²C‑bussen forbinder Arduino med ADS1115, LCD og den valgfri DS1307 RTC.
+Pull‑up modstande på 4,7 kΩ anvendes på SDA og SCL.
+Firmware v7 anvender 400 kHz I²C‑hastighed for at sikre hurtig kommunikation med ADS1115 ved 860 SPS.
+Adressefordelingen er:
+- ADS1115: 0x48
+- LCD: typisk 0x27
+- RTC (valgfri): 0x68
+Firmware v7 detekterer automatisk, om RTC er til stede.
+
+4.2 Strømforsyning og termiske forhold
+Dette afsnit er uændret, men med én vigtig firmware‑relevant tilføjelse:
+Firmware v7 anvender PROGMEM‑kalibreringstabeller, som forudsætter at LM317’s temperatur er stabil.
+Derfor skal LM317’s køleprofil dimensioneres, så temperaturstigningen under drift er minimal.
+Termisk drift i LM317 påvirker teststrømmen og dermed ADC‑værdierne, hvilket firmware v7 ikke kompenserer for.
+
+4.3 Use Cases og Brugsscenarier
+Dette afsnit er uændret 1:1, da firmware v7 ikke ændrer anvendelsesmønstre.
+Instrumentet bruges til:
+- Måling af lavmodstandskomponenter
+- Fejlfinding i kabler og forbindelser
+- ESR‑måling af batterier (DC‑tilnærmelse)
+- Test af viklinger i motorer og transformere
+- Kvalitetskontrol i produktion
+- Service og vedligeholdelse
+Firmware v7 tilføjer dog følgende funktionelle muligheder:
+- SCPI‑kommandoer til måling og eksport
+- Intern datalogning af de seneste 16 målinger
+- Automatisk tidsstempling, hvis RTC er til stede
+- Dynamisk PGA‑valg for optimal ADC‑udnyttelse
+
+
+5. Funktionelle krav
+Dette afsnit beskriver alle funktionelle krav til milliohmmeteret. Strukturen og omfanget er identisk med originalen, men opdateret så det præcist afspejler firmware v7’s faktiske funktioner, herunder dynamisk PGA‑styring, PROGMEM‑baseret kalibrering, SCPI‑interface, datalogning og måleområde op til 10 ohm.
+
+5.1 Måleområde og opløsning
+Instrumentet skal kunne måle modstande fra 1 milliohm til 10 ohm. Dette er en udvidelse i forhold til tidligere versioner, hvor måleområdet sluttede ved 5 ohm. Firmware v7 understøtter dette udvidede område gennem dynamisk PGA‑styring og kalibreringstabeller, der dækker hele området.
+Opløsningen bestemmes af ADS1115’s 16‑bit differentialmåling kombineret med oversampling og interpolation. Firmware v7 anvender ikke en fast opløsning i milliohm, men opnår effektiv opløsning gennem interpolation mellem kalibreringspunkter.
+
+5.2 Teststrøm
+Instrumentet skal levere en konstant teststrøm på 100 mA gennem DUT. Dette opnås via LM317 i konstantstrømskonfiguration med en præcisionsmodstand på 12,5 ohm. Firmware v7 forudsætter, at denne strøm er stabil, da der ikke udføres temperaturkompensation eller automatisk nuljustering.
+
+5.3 4‑leder Kelvin‑måling
+Instrumentet skal anvende 4‑leder Kelvin‑måleteknik. Force‑ledningerne fører strømmen, mens sense‑ledningerne måler spændingsfaldet direkte på DUT. Firmware v7 anvender ADS1115 i differential mode mellem A0 og A1 til at måle spændingsfaldet med høj impedans.
+
+5.4 ADC‑systemkrav
+Firmware v7 stiller følgende krav til ADC‑systemet:
+- ADS1115 skal anvendes i differential mode.
+- ADC’en skal køre med en datarate på 860 samples per sekund.
+- Firmware skal udføre oversampling af 65 målinger i 4 blokke for at reducere støj.
+- PGA‑forstærkningen skal vælges dynamisk baseret på den rå ADC‑værdi.
+- Firmware skal understøtte tre PGA‑niveauer: 4×, 8× og 16×.
+- ADC‑værdien skal konverteres til modstand via lineær interpolation i PROGMEM‑tabeller.
+- Firmware skal kunne håndtere ADC‑værdier uden for kalibreringsområdet ved at vise en fejlmeddelelse.
+
+5.5 Kalibreringsknap og kalibreringsfunktion
+Instrumentet skal have en fysisk kalibreringsknap forbundet til Arduino’s digitale pin 2 med intern pull‑up. Når knappen holdes nede, skal instrumentet gå i kalibreringstilstand.
+I kalibreringstilstand skal følgende ske:
+- Displayet skal vise rå ADC‑værdier og aktuel PGA‑indstilling.
+- Kalibrerings‑LED’en skal lyse.
+- Firmware skal ikke udføre modstandskonvertering.
+- Rå ADC‑værdier skal sendes til seriel porten.
+Firmware v7 understøtter ikke SCPI‑baseret kalibrering. Kalibreringstabellerne er lagret i PROGMEM og kræver omprogrammering af firmwaren for at blive opdateret.
+Dette er en vigtig afvigelse fra professionelle instrumenter, som typisk har NVRAM‑baseret kalibrering.
+
+5.7 Non‑funktionelle krav (NFR)
+Dette afsnit er uændret i struktur, men opdateret så det matcher firmware v7’s faktiske begrænsninger.
+Nøjagtighed
+Instrumentet skal have en typisk nøjagtighed omkring 1 procent efter korrekt kalibrering. Nøjagtigheden afhænger af:
+- LM317’s temperaturdrift
+- ADS1115’s ikke‑lineære karakteristik
+- Kalibreringstabellernes kvalitet
+- Omgivelsestemperaturen
+Firmware v7 har ingen temperaturkompensation, ingen auto‑zero og ingen EMF‑kompensation.
+Ydelse
+Instrumentet skal kunne opdatere displayet uden flimmer. Firmware v7 implementerer hysterese, så displayet kun opdateres, når modstanden ændrer sig mere end 10 mikroohm.
+Robusthed
+Instrumentet skal kunne håndtere:
+- Manglende RTC (fallback til uptime‑tidsstempling)
+- ADC‑fejl (visning af fejlmeddelelse)
+- Målinger uden for kalibreringsområdet (visning af “CAL FEJL”)
+- Modstande over 10 ohm (visning af “OL”)
+Brugervenlighed
+Instrumentet skal:
+- Vise modstand i mikroohm, milliohm eller ohm afhængigt af måleværdien
+- Vise aktuel PGA‑indstilling
+- Understøtte SCPI‑kommandoer til måling og eksport
+- Logge de seneste 16 målinger i RAM
+6. Kalibreringsvejledning
+Kalibrering er en central del af instrumentets funktion, da ADS1115 ikke er lineær over hele spændingsområdet, og LM317’s temperaturdrift påvirker teststrømmen. Firmware v7 anvender derfor omfattende kalibreringstabeller lagret i PROGMEM. Disse tabeller kan kun opdateres ved at genkompilere og genindlæse firmwaren.
+Kalibreringsproceduren i dette afsnit er identisk i struktur og omfang med originalen, men opdateret så den præcist afspejler firmware v7’s funktionalitet, herunder dynamisk PGA‑valg og rå ADC‑visning i kalibreringstilstand.
+
+6.1 Forberedelse
+Før kalibrering skal følgende være opfyldt:
+- LM317 skal være monteret på en passende køleprofil og have opnået termisk stabilitet.
+- Omgivelsestemperaturen skal være 25 °C ± 2 °C, da firmware v7 ikke har temperaturkompensation.
+- Instrumentet skal have været tændt i mindst 10 minutter for at stabilisere ADC, regulator og referencekomponenter.
+- Testledningerne skal være rene og i god stand.
+- DUT‑modstandene, der anvendes til kalibrering, skal være præcisionsmodstande med kendt værdi og lav temperaturkoefficient.
+- Arduino skal være forbundet til en computer via USB, så rå ADC‑værdier kan aflæses i Serial Monitor.
+Firmware v7 understøtter ikke SCPI‑baseret kalibrering. Kalibrering foregår udelukkende via fysisk knap og manuel aflæsning.
+
+6.2 Softwarekalibrering
+Firmware v7 anvender tre separate kalibreringstabeller, én for hver PGA‑indstilling: 4×, 8× og 16×. Hver tabel indeholder 81 punkter. Derudover findes en tabel med reference‑modstande i ohm.
+Kalibreringsprocessen består af følgende trin:
+- Sæt instrumentet i kalibreringstilstand ved at holde kalibreringsknappen nede.
+Displayet viser nu rå ADC‑værdier og aktuel PGA‑indstilling. Kalibrerings‑LED’en lyser.
+- Tilslut den første reference‑modstand til Kelvin‑terminalerne.
+Firmware vælger automatisk den PGA‑indstilling, der passer til spændingsfaldet.
+- Aflæs den rå ADC‑værdi i Serial Monitor.
+Firmware sender linjer i formatet:
+RAW: <adc> PGA: <gain>
+- Notér ADC‑værdien og match den med den kendte reference‑modstand.
+- Gentag processen for alle reference‑modstande i hele måleområdet fra 1 milliohm til 10 ohm.
+- Når alle punkter er indsamlet, skal værdierne indsættes i PROGMEM‑tabellerne i firmwaren.
+Dette kræver manuel redigering af kildekoden.
+- Genkompilér og upload firmwaren til Arduino.
+- Verificér kalibreringen ved at måle alle reference‑modstande igen i normal måletilstand.
+Firmware v7 udfører lineær interpolation mellem kalibreringspunkterne. Derfor er det vigtigt, at punkterne er jævnt fordelt og dækker hele området.
+
+6.3 Fejlkilder
+Dette afsnit er udvidet for at matche firmware v7’s faktiske begrænsninger.
+Temperaturdrift
+LM317’s udgangsstrøm varierer med temperatur. Da firmware v7 ikke kompenserer for dette, kan målinger afvige, hvis instrumentet er varmere eller koldere end ved kalibrering.
+Termospændinger
+Forskellige metaller i forbindelserne kan skabe mikrovolt‑niveau spændinger. Firmware v7 har ingen EMF‑kompensation eller polaritetsvending, så termospændinger kan påvirke målinger i mikroohm‑området.
+Offsetfejl
+Firmware v7 har ingen auto‑zero funktion. Offset i ADS1115 eller i sense‑ledningerne kan derfor give systematiske fejl.
+ADC‑støj
+ADS1115 har 1/f‑støj ved lave frekvenser. Firmware v7 reducerer dette via oversampling, men støj kan stadig påvirke målinger i den lave ende af området.
+Kontaktmodstand
+Selv om Kelvin‑måling eliminerer de fleste fejl, kan dårlig kontakt i sense‑forbindelserne give fejl. Kontakterne skal være rene og faste.
+Kalibreringspunkter
+Hvis reference‑modstandene ikke er præcise, eller hvis ADC‑værdierne noteres forkert, vil hele kalibreringstabellen være unøjagtig.
+
+
+7. Verifikation og test
+Dette afsnit beskriver, hvordan instrumentet verificeres og testes efter montage og kalibrering. Strukturen og omfanget er identisk med originalen, men opdateret så det præcist afspejler firmware v7’s funktioner, herunder dynamisk PGA‑styring, PROGMEM‑kalibrering, SCPI‑interface og udvidet måleområde op til 10 ohm.
+
+7.1 Funktionsverifikation
+Funktionsverifikation skal sikre, at instrumentet arbejder korrekt på alle niveauer: hardware, ADC, firmware, brugerinterface og SCPI‑kommunikation.
+Start‑ og initialiseringstest
+Når instrumentet tændes, skal følgende ske:
+- LCD‑displayet skal initialisere og vise firmwareversionen.
+- ADS1115 skal initialisere korrekt. Hvis ADC’en ikke svarer, skal displayet vise en fejlmeddelelse.
+- RTC skal detekteres automatisk. Hvis RTC ikke er til stede, skal firmware fortsætte i fallback‑mode med uptime‑tidsstempling.
+- Kalibrerings‑LED’en skal være slukket.
+- I²C‑bussen skal køre ved 400 kHz uden fejl.
+ADC‑test
+Instrumentet skal verificeres ved at udføre en rå ADC‑måling uden DUT tilsluttet. Råværdien skal være tæt på nul, og PGA‑vælgeren skal vælge 16× forstærkning.
+Firmware v7’s dynamiske PGA‑styring skal verificeres ved at tilslutte DUT’er med stigende modstand og observere, at PGA skifter mellem 16×, 8× og 4× ved de forventede niveauer.
+Displaytest
+Displayet skal:
+- Vise modstand i mikroohm, milliohm eller ohm afhængigt af måleværdien.
+- Vise aktuel PGA‑indstilling.
+- Opdatere uden flimmer, hvilket verificeres ved at observere hysterese‑funktionen.
+- Vise “OL”, hvis modstanden overstiger 10 ohm.
+- Vise “CAL FEJL”, hvis ADC‑værdien ligger uden for kalibreringsområdet.
+Kalibreringstilstand
+Når kalibreringsknappen holdes nede:
+- Displayet skal vise rå ADC‑værdier og PGA‑indstilling.
+- Kalibrerings‑LED’en skal lyse.
+- Firmware skal sende rå ADC‑værdier til seriel porten.
+- Ingen modstandskonvertering må finde sted.
+Dette verificerer, at kalibreringslogikken fungerer korrekt.
+SCPI‑test
+Følgende SCPI‑kommandoer skal verificeres:
+- *IDN? skal returnere korrekt identifikation.
+- MEAS? og MEASURE:RES? skal returnere en målt modstandsværdi.
+- EXPORT:CSV? skal udskrive logbufferen i CSV‑format.
+- EXPORT:XML? skal udskrive logbufferen i XML‑format.
+- Ukendte kommandoer skal returnere en fejlmeddelelse.
+- CAL? skal returnere besked om, at kalibrering ikke kan udføres via SCPI.
+Dette afspejler firmware v7’s faktiske SCPI‑funktionalitet.
+
+7.2 Nøjagtighedsverifikation
+Nøjagtighedsverifikation skal sikre, at instrumentet måler inden for den forventede tolerance på cirka 1 procent efter kalibrering.
+Reference‑modstande
+Instrumentet skal testes med et sæt præcisionsmodstande, der dækker hele måleområdet fra 1 milliohm til 10 ohm. For hver reference‑modstand skal følgende verificeres:
+- Målingen skal ligge inden for den forventede tolerance.
+- PGA‑vælgeren skal vælge korrekt forstærkning.
+- Displayet skal vise korrekt enhed (µΩ, mΩ eller Ω).
+- Målingen skal være stabil uden flimmer.
+Lineær interpolation
+Da firmware v7 anvender lineær interpolation mellem kalibreringspunkter, skal der udføres testmålinger mellem referencepunkterne for at sikre, at interpolation giver korrekte resultater.
+Temperaturtest
+Da firmware v7 ikke har temperaturkompensation, skal instrumentet testes ved:
+- Kalibreringstemperatur (ca. 25 °C)
+- En lavere temperatur
+- En højere temperatur
+Dette verificerer, at brugeren er opmærksom på temperaturens indflydelse.
+
+7.3 EMC‑ og miljøtest
+Dette afsnit er uændret i struktur, men opdateret så det matcher firmware v7’s faktiske funktioner.
+EMC‑test
+Instrumentet skal:
+- Være modstandsdygtigt over for almindelig elektromagnetisk støj.
+- Ikke vise ustabile målinger ved moderate EMI‑påvirkninger.
+- Have korrekt afkobling på alle IC’er.
+- Have korrekt layout omkring sense‑traces og ADC.
+Firmware v7’s oversampling hjælper med at reducere støj, men instrumentet er stadig følsomt over for stærke EMI‑kilder.
+Miljøtest
+Instrumentet skal testes ved:
+- Normal stuetemperatur
+- Let forhøjet temperatur
+- Let sænket temperatur
+Dette er vigtigt, da firmware v7 ikke kompenserer for temperaturdrift i LM317 eller ADS1115.
+
+
+8. EMC og PCB‑layout
+Dette afsnit beskriver de elektromagnetiske hensyn og layoutkrav, der skal overholdes for at sikre stabile og reproducerbare målinger. Strukturen og omfanget er identisk med originalen, men opdateret så det præcist afspejler firmware v7’s funktioner, herunder ADS1115 i differential mode, dynamisk PGA‑styring og PROGMEM‑baseret kalibrering.
+Firmware v7 er følsom over for støj, da målingerne foregår i mikrovolt‑området, og der ikke findes temperaturkompensation, auto‑zero eller EMF‑kompensation. Derfor er korrekt layout og EMC‑styring afgørende.
+
+8.1 Layoutkrav
+PCB‑layoutet skal understøtte præcisionsmålinger i lavohmsområdet. Følgende krav gælder:
+Adskillelse af analog og digital del
+Den analoge del (ADS1115, sense‑traces, Kelvin‑terminaler) skal være fysisk adskilt fra den digitale del (Arduino, LCD, I²C‑bus).
+Dette reducerer digital støj, som ellers kan koble ind i sense‑ledningerne.
+Kortest mulig vej for sense‑traces
+Sense‑traces fra Kelvin‑terminalerne til ADS1115’s A0 og A1 indgange skal være så korte som muligt.
+Dette minimerer:
+- Indkoblet støj
+- Termospændinger
+- Krydstale
+Ground‑plane
+Der skal være et ubrudt ground‑plane under hele ADC‑sektionen.
+Dette stabiliserer referencepotentialet og reducerer EMI.
+90‑graders krydsning
+Sense‑traces skal krydse digitale signaler i 90 graders vinkel, hvis krydsning ikke kan undgås.
+Parallelle løb mellem digitale og analoge signaler skal undgås.
+Afkobling
+Alle IC’er skal have lokale afkoblingskondensatorer tæt på forsyningsbenene.
+Dette gælder især:
+- ADS1115
+- Arduino
+- LM317
+- RTC (hvis monteret)
+Termisk styring
+LM317 skal placeres, så varme ikke påvirker ADC‑området.
+Firmware v7 har ingen temperaturkompensation, så termisk isolation er vigtig.
+Kelvin‑terminaler
+Force‑ og sense‑terminalerne skal være fysisk adskilt og tydeligt markeret.
+Sense‑terminalerne skal placeres tættest på PCB‑traces for at minimere overgangsmodstand.
+
+8.2 Shielding og filtrering
+Dette afsnit er uændret i struktur, men opdateret så det matcher firmware v7’s faktiske funktioner.
+Skærmning af måleledninger
+Kelvin‑testledningerne bør være tvistet par for både force‑ og sense‑ledninger.
+Dette reducerer:
+- Indkoblet støj
+- Magnetisk interferens
+- Termospændinger i asymmetriske forbindelser
+Ferritkerner
+Ferritkerner kan monteres på testledningerne, hvis instrumentet anvendes i støjende miljøer.
+Firmware v7’s oversampling reducerer støj, men ferritkerner kan yderligere stabilisere målinger.
+Filtrering
+ADS1115 har indbygget digital filtrering, men PCB‑layoutet skal understøtte lavstøjsmåling ved at:
+- Minimere løkker
+- Undgå lange analoge traces
+- Placere ADC’en tæt på sense‑terminalerne
+EMC‑robusthed
+Instrumentet skal kunne fungere stabilt i almindelige laboratoriemiljøer.
+Det er ikke designet til industrielle EMC‑krav, men korrekt layout og afkobling sikrer tilstrækkelig robusthed.
+
+
+9. Softwarearkitektur
+Dette afsnit beskriver den softwaremæssige opbygning af milliohmmeteret. Strukturen er identisk med originalen, men opdateret så den præcist afspejler firmware v7’s funktioner, herunder dynamisk PGA‑styring, PROGMEM‑kalibreringstabeller, SCPI‑protokol, datalogning og RTC‑understøttelse.
+Firmware v7 er betydeligt mere avanceret end tidligere versioner og indeholder en fuld målekæde fra rå ADC‑data til interpoleret modstandsværdi, samt et SCPI‑lag og et internt logsystem.
+
+9.1 Doxygen‑dokumentation
+Firmware v7 er fuldt dokumenteret med Doxygen‑kommentarer.
+Alle funktioner, datastrukturer, konstanter og globale variabler er beskrevet i overensstemmelse med Doxygen‑standarder.
+Doxygen‑kommentarerne beskriver:
+- Hardwarekonfiguration
+- Måleparametre
+- Kalibreringstabeller
+- PGA‑styring
+- ADC‑måling og oversampling
+- Interpolationsalgoritme
+- Displayfunktioner
+- SCPI‑kommandofortolkning
+- Datalogning
+- RTC‑håndtering
+Dette afsnit er uændret i struktur, men firmware v7 indeholder flere dokumenterede moduler end tidligere versioner.
+
+9.2 Softwaremoduler
+Firmware v7 er opdelt i en række funktionelle moduler, der hver håndterer en specifik del af systemet.
+Modulopdelingen er identisk med originalen, men indholdet er opdateret til at matche den nye funktionalitet.
+Hardwarekonfiguration
+Dette modul definerer:
+- Pin‑konfiguration
+- I²C‑adresser
+- LCD‑objekt
+- ADS1115‑objekt
+- RTC‑objekt
+- Kalibrerings‑LED
+- Kalibreringsknap
+Firmware v7 detekterer automatisk, om RTC er til stede.
+Måleparametre
+Dette modul indeholder:
+- Oversamplingparametre
+- Hysteresegrænse for displayopdatering
+- Debounce‑tid for knappen
+- PGA‑tærskler
+- Antal kalibreringspunkter
+Firmware v7 anvender 65 samples × 4 blokke for at reducere støj.
+Kalibreringstabeller (PROGMEM)
+Firmware v7 indeholder tre store kalibreringstabeller, én for hver PGA‑indstilling.
+Derudover findes en tabel med reference‑modstande.
+Alle tabeller er lagret i PROGMEM og kræver genkompilering ved ændring.
+PGA‑styring
+Dette modul håndterer:
+- Valg af optimal PGA baseret på rå ADC‑værdi
+- Opsætning af ADS1115’s gain
+- Genmåling efter PGA‑skift
+Firmware v7 anvender tre niveauer: 4×, 8× og 16×.
+ADC‑måling og oversampling
+Dette modul udfører:
+- Differentialmåling på ADS1115
+- Oversampling
+- Blokgennemsnit
+- Endeligt gennemsnit
+Firmware v7 anvender 860 SPS og 400 kHz I²C‑clock.
+Interpolation og modstandskonvertering
+Dette modul:
+- Finder to kalibreringspunkter omkring den målte ADC‑værdi
+- Udfører lineær interpolation
+- Returnerer modstand i ohm
+Firmware v7 anvender ikke Ohms lov direkte.
+Displaymodul
+Dette modul håndterer:
+- Visning af rå ADC‑værdier i kalibreringstilstand
+- Visning af modstand i µΩ, mΩ eller Ω
+- Visning af PGA‑indstilling
+- Fejlmeddelelser (“CAL FEJL”, “OL”, “ADC FEJL”)
+- Hysterese for at undgå flimmer
+Input‑ og kalibreringslogik
+Dette modul håndterer:
+- Debounce af kalibreringsknappen
+- Skift mellem normal tilstand og kalibreringstilstand
+- Styring af kalibrerings‑LED
+Firmware v7 understøtter ikke SCPI‑kalibrering.
+Tidsstempling og datalogning
+Dette modul:
+- Genererer tidsstempler via RTC eller uptime
+- Gemmer målinger i en cirkulær buffer
+- Håndterer eksport i CSV og XML
+Firmware v7 gemmer 16 målinger i RAM.
+SCPI‑kommandofortolkning
+Dette modul håndterer:
+- Parsing af serielle kommandoer
+- Konvertering til uppercase
+- Udførelse af SCPI‑kommandoer
+Understøttede kommandoer:
+- *IDN?
+- MEAS? / MEASURE:RES?
+- EXPORT:CSV?
+- EXPORT:XML?
+- CAL? (returnerer at kalibrering ikke er SCPI‑styret)
+Ukendte kommandoer returnerer en fejlmeddelelse.
+Setup‑modul
+Dette modul initialiserer:
+- Serial
+- I²C
+- LCD
+- ADS1115
+- RTC
+- Logbuffer
+Loop‑modul
+Dette modul udfører:
+- SCPI‑håndtering
+- Knapopdatering
+- ADC‑måling
+- Dynamisk PGA‑valg
+- Interpolation
+- Displayopdatering
+- Datalogning
+Loop‑strukturen er optimeret til stabil realtidsmåling.
+
+
+10. Produktionskrav
+Dette afsnit beskriver de krav, der gælder for produktion, fremstilling og test af milliohmmeteret. Strukturen og omfanget er identisk med originalen, men opdateret så det præcist afspejler firmware v7’s funktioner og afhængigheder, herunder PROGMEM‑kalibrering, dynamisk PGA‑styring og krav til præcisionslayout.
+
+10.1 Gerber‑filer og fabrikationskrav
+Printkortet skal fremstilles som et dobbeltlags FR4‑print med en tykkelse på 1,6 mm og kobbertykkelse på 35 µm.
+Layoutet skal følge de EMC‑ og præcisionskrav, der er beskrevet i afsnit 8.
+Følgende krav gælder for produktionen:
+- Sense‑traces skal være korte, symmetriske og adskilt fra digitale signaler.
+- Force‑traces skal være dimensioneret til 100 mA kontinuerlig strøm.
+- Ground‑plane skal være ubrudt under ADC‑sektionen.
+- ADS1115 skal placeres tæt på Kelvin‑terminalerne.
+- LM317 skal placeres, så varme ikke påvirker ADC‑området.
+- I²C‑traces skal være korte og have korrekt pull‑up‑modstand.
+- LCD‑headeren skal placeres, så displayet kan monteres uden at påvirke sense‑traces.
+- RTC‑modulet (valgfrit) skal have plads til montering og korrekt I²C‑routing.
+Gerber‑filerne skal være kompatible med almindelige PCB‑fabrikanter og følge standarder for:
+- Silketryk
+- Loddemaske
+- Boringer
+- Kobbertykkelse
+- Sporafstand
+Firmware v7 stiller ingen yderligere krav til PCB‑fremstillingen, men kræver et layout, der understøtter lavstøjsmåling.
+
+10.2 Montage og test
+Montagen skal udføres i følgende rækkefølge for at sikre korrekt funktion og minimal risiko for fejl:
+1. Lodning af passive komponenter
+Modstande, kondensatorer og dioder loddes først.
+Dette sikrer korrekt termisk profil og minimerer risikoen for at beskadige følsomme IC’er.
+2. Lodning af IC’er og sokler
+ADS1115, Arduino‑headerne og RTC‑headeren loddes næste.
+ADS1115 skal loddes med særlig omhu, da fejl her påvirker hele målekæden.
+3. Lodning af LM317 og køleprofil
+LM317 skal monteres med termisk pasta og korrekt isolering, hvis køleprofilen er elektrisk forbundet.
+Dette er vigtigt, da firmware v7 ikke kompenserer for temperaturdrift.
+4. Montering af terminaler
+Kelvin‑terminalerne monteres sidst, så de ikke forhindrer adgang til andre loddepunkter.
+5. Visuel inspektion
+Printet skal inspiceres for:
+- Loddebroer
+- Kolde lodninger
+- Fejlvendte komponenter
+- Mekaniske spændinger
+6. Elektrisk test
+Før første opstart skal følgende verificeres:
+- Ingen kortslutning mellem 5V og GND
+- LM317’s udgangsstrøm er ca. 100 mA
+- I²C‑bussen har korrekt pull‑up
+- ADS1115 svarer på adresse 0x48
+- LCD svarer på adresse 0x27
+- RTC svarer på adresse 0x68 (hvis monteret)
+7. Firmware‑upload
+Firmware v7 uploades via Arduino IDE.
+Efter upload skal instrumentet:
+- Initialisere korrekt
+- Vise firmwareversion
+- Detektere RTC (hvis til stede)
+- Gå i normal måletilstand
+8. Kalibrering
+Kalibrering udføres som beskrevet i afsnit 6.
+Da firmware v7 anvender PROGMEM‑tabeller, skal kalibreringsdata indtastes i kildekoden og firmware genuploades.
+9. Sluttest
+Instrumentet testes med reference‑modstande i hele området fra 1 milliohm til 10 ohm.
+Display, SCPI‑interface og datalogning verificeres.
+
+
+11. Acceptance test og godkendelse
+Dette afsnit beskriver den endelige accepttest, som instrumentet skal bestå, før det kan betragtes som færdigt, funktionelt og godkendt. Strukturen og omfanget er identisk med originalen, men opdateret så det præcist afspejler firmware v7’s funktioner, herunder dynamisk PGA‑styring, PROGMEM‑kalibrering, SCPI‑interface og udvidet måleområde op til 10 ohm.
+Acceptance‑testen skal verificere, at instrumentet fungerer korrekt i alle tilstande, leverer stabile og nøjagtige målinger og opfylder alle krav i denne SRS.
+
+11.1 Acceptance test – trin for trin
+1. Opstart og initialisering
+Når instrumentet tændes, skal følgende verificeres:
+- LCD‑displayet initialiserer korrekt og viser firmwareversionen.
+- ADS1115 initialiseres uden fejl.
+- RTC detekteres korrekt, hvis det er monteret.
+- Hvis RTC ikke er monteret, skal firmware fortsætte i fallback‑mode uden fejl.
+- Kalibrerings‑LED’en skal være slukket.
+- Ingen fejlmeddelelser må vises.
+Dette bekræfter, at hardware og firmware initialiseres korrekt.
+
+2. ADC‑funktion og dynamisk PGA
+Instrumentet skal testes med DUT’er i forskellige modstandsområder for at verificere:
+- At rå ADC‑værdier er stabile.
+- At PGA‑vælgeren automatisk skifter mellem 16×, 8× og 4× ved de korrekte niveauer.
+- At ADC‑målingerne ikke saturerer i nogen PGA‑tilstand.
+- At oversampling fungerer (målinger skal være rolige og uden jitter).
+Dette bekræfter, at målekæden fungerer korrekt.
+
+3. Displayfunktion
+Displayet skal verificeres for:
+- Korrekt visning af modstand i mikroohm, milliohm eller ohm.
+- Korrekt visning af aktuel PGA‑indstilling.
+- Stabil opdatering uden flimmer (hysterese skal fungere).
+- Visning af “OL”, hvis modstanden overstiger 10 ohm.
+- Visning af “CAL FEJL”, hvis ADC‑værdien ligger uden for kalibreringsområdet.
+- Korrekt visning af rå ADC‑værdier i kalibreringstilstand.
+Dette bekræfter, at brugerinterfacet fungerer korrekt.
+
+4. Kalibreringstilstand
+Når kalibreringsknappen holdes nede:
+- Displayet skal skifte til rå ADC‑visning.
+- Kalibrerings‑LED’en skal lyse.
+- Firmware skal sende rå ADC‑værdier og PGA‑indstilling til seriel porten.
+- Ingen modstandskonvertering må finde sted.
+Dette bekræfter, at kalibreringslogikken fungerer korrekt.
+
+5. SCPI‑funktionalitet
+Følgende SCPI‑kommandoer skal testes:
+- *IDN? skal returnere korrekt identifikation.
+- MEAS? og MEASURE:RES? skal returnere en korrekt målt modstand.
+- EXPORT:CSV? skal udskrive logbufferen i CSV‑format.
+- EXPORT:XML? skal udskrive logbufferen i XML‑format.
+- CAL? skal returnere besked om, at kalibrering ikke kan udføres via SCPI.
+- Ukendte kommandoer skal returnere en fejlmeddelelse.
+Dette bekræfter, at instrumentet kan integreres i automatiserede testsystemer.
+
+6. Datalogning
+Instrumentet skal:
+- Gemme de seneste 16 målinger i RAM.
+- Tilføje nye målinger i cirkulær buffer.
+- Tilføje tidsstempel via RTC eller uptime.
+- Eksportere loggen korrekt via SCPI.
+Dette bekræfter, at datalogningen fungerer som specificeret.
+
+7. Nøjagtighedstest
+Instrumentet skal testes med præcisionsmodstande i hele området fra 1 milliohm til 10 ohm.
+For hver reference‑modstand skal følgende verificeres:
+- Målingen skal være inden for den forventede tolerance (ca. 1 procent).
+- Målingen skal være stabil.
+- PGA‑vælgeren skal vælge korrekt forstærkning.
+- Displayet skal vise korrekt enhed.
+Dette bekræfter, at kalibreringen er korrekt.
+
+8. Temperaturtest
+Da firmware v7 ikke har temperaturkompensation, skal instrumentet testes ved:
+- Kalibreringstemperatur (ca. 25 °C)
+- En lavere temperatur
+- En højere temperatur
+Dette bekræfter, at brugeren er opmærksom på temperaturens indflydelse.
+
+11.2 Godkendelse
+Instrumentet kan godkendes, når:
+- Alle funktionelle krav i afsnit 5 er opfyldt.
+- Alle målinger i acceptance‑testen er bestået.
+- Nøjagtighedstesten viser acceptable resultater.
+- SCPI‑funktionaliteten fungerer uden fejl.
+- Datalogningen fungerer korrekt.
+- Kalibreringen er verificeret.
+- Ingen EMC‑relaterede problemer observeres under normal brug.
+- Display og brugerinterface fungerer stabilt.
+Når alle disse punkter er opfyldt, anses instrumentet for godkendt og klar til brug.
+
+
+12. Bilag og eksempler
+Dette afsnit indeholder illustrative eksempler, der viser, hvordan instrumentet anvendes i praksis. Eksemplerne er opdateret, så de afspejler firmware v7’s funktioner, herunder dynamisk PGA‑styring, SCPI‑interface, PROGMEM‑kalibrering og datalogning.
+Strukturen og omfanget er identisk med originalen, men indholdet er tilpasset den nye firmware.
+
+12.1 Eksempel på normal måling
+Når instrumentet er tændt og i normal måletilstand, vil en DUT på eksempelvis 0,125 ohm give følgende typiske output:
+- Displayet viser:
+“R: (Gain=8)”
+“125.000 mOhm”
+- Seriel port viser:
+“ADC: 8320 PGA: 8 R: 0.125000 Ohm”
+- Dataloggen tilføjer en post med tidsstempel og måleværdi.
+Dette eksempel viser, hvordan firmware v7 automatisk vælger PGA‑niveauet og interpolerer modstanden.
+
+12.2 Eksempel på måling uden for område
+Hvis DUT overstiger 10 ohm, vil instrumentet:
+- Vise “OL” på displayet
+- Ikke forsøge at interpolere
+- Ikke gemme målingen i logbufferen
+Dette afspejler firmware v7’s faste øvre målegrænse.
+
+12.3 Eksempel på kalibreringstilstand
+Når kalibreringsknappen holdes nede:
+- Displayet viser:
+“RAW ADC: (G=16)”
+“1234”
+- Seriel port viser:
+“RAW: 1234 PGA: 16”
+- Kalibrerings‑LED’en lyser konstant
+- Ingen modstandskonvertering udføres
+Dette eksempel viser, hvordan firmware v7 giver direkte adgang til rå ADC‑data.
+
+12.4 Eksempel på SCPI‑kommandoer
+Identifikation
+Kommando:
+*IDN?
+Svar:
+“Milliohmmeter v7,Jan Engelbrecht Pedersen,2025‑12‑15,FW‑SCPI‑MultiPGA”
+Måling
+Kommando:
+MEAS?
+Svar:
+“0.125000 Ohm”
+Eksport af CSV
+Kommando:
+EXPORT:CSV?
+Svar (forkortet eksempel):
+timestamp,resistance
+2025-12-15T12:01:22,0.125000
+2025-12-15T12:01:25,0.124800
+
+
+Eksport af XML
+Kommando:
+EXPORT:XML?
+Svar (forkortet eksempel):
+<measurements>
+  <measurement><timestamp>2025-12-15T12:01:22</timestamp><resistance>0.125000</resistance></measurement>
+</measurements>
+
+
+Kalibrering
+Kommando:
+CAL?
+Svar:
+“Kalibrering er ikke tilgængelig via SCPI. Brug hardwareknap.”
+Dette afspejler firmware v7’s begrænsning.
+
+12.5 Eksempel på logbuffer
+Efter flere målinger kan logbufferen indeholde:
+- Tidsstempel genereret af RTC eller uptime
+- Modstandsværdi i ohm
+- Op til 16 poster i cirkulær buffer
+Eksempel på intern struktur (beskrevet i tekstform):
+- Post 1: “2025‑12‑15T12:01:22”, 0.125000
+- Post 2: “2025‑12‑15T12:01:25”, 0.124800
+- Post 3: “2025‑12‑15T12:01:28”, 0.125100
+Når bufferens kapacitet nås, overskrives den ældste post.
+
+12.6 Eksempel på fejlmeddelelser
+Firmware v7 kan vise følgende fejlmeddelelser:
+- “ADC FEJL” — ADS1115 svarer ikke
+- “CAL FEJL” — ADC‑værdi uden for kalibreringsområdet
+- “OL” — Modstand overstiger 10 ohm
+Disse fejlmeddelelser vises både på displayet og i visse tilfælde på seriel porten.
+
+12.7 Eksempel på temperaturpåvirkning
+Da firmware v7 ikke har temperaturkompensation, kan følgende observeres:
+- Ved lavere temperatur falder LM317’s udgangsstrøm en smule
+- Ved højere temperatur stiger udgangsstrømmen
+- ADS1115’s offset kan ændre sig med temperatur
+Eksempel:
+- Ved 25 °C: 0.125000 ohm
+- Ved 35 °C: 0.126200 ohm
+- Ved 15 °C: 0.123900 ohm
+Dette illustrerer vigtigheden af kalibrering ved den temperatur, instrumentet skal anvendes ved.
+
+12.8 Eksempel på brug i automatiseret testsystem
+Et eksternt system kan:
+- Sende MEAS? hvert sekund
+- Logge værdierne
+- Analysere trends
+- Eksportere data via SCPI
+Firmware v7’s SCPI‑lag gør instrumentet velegnet til automatiseret test i hobby‑ og undervisningsmiljøer.
+
+12.9 Eksempel på komplet målecyklus
+- DUT tilsluttes
+- Firmware måler rå ADC‑værdi
+- PGA vælges automatisk
+- Ny måling udføres
+- ADC‑værdi interpoleres
+- Modstand vises på display
+- Målingen logges
+- SCPI‑kommandoer kan hentes når som helst
+Dette viser hele målekæden i firmware v7.
+
+
